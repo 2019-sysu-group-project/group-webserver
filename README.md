@@ -69,3 +69,5 @@ git checkout master
 git merge upstream/master
 ```
 最后一步，git merge upstream这里，你可能需要处理冲突，具体做法请查阅[该链接](https://stackoverflow.com/questions/161813/how-to-resolve-merge-conflicts-in-git)，如果你更倾向于使用GUI的话，请参考[链接](https://stackoverflow.com/questions/38216541/visual-studio-code-how-to-resolve-merge-conflicts-with-git)以VSCode为例子。
+
+## 如果你还不确定上面的一些操作，尽管在staring-tutorial中尝试上面描述的操作，当你提交Pull Request到主仓库时，我会给你一个大拇指以示奖励。
