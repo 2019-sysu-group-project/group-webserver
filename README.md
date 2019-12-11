@@ -66,5 +66,6 @@ git push origin master
 git remote add upstream https://github.com/2019-sysu-group-project/staring-tutorial.git # 注意这里的url不是你的仓库的url，而是团队项目的url，团队项目url获取方式和步骤2中你的仓库url获取方式一样，都是点击clone or download 按钮
 git fetch upstream
 git checkout master
-
+git merge upstream/master
 ```
+最后一步，git merge upstream这里，你可能需要处理冲突，具体做法请查阅[该链接](https://stackoverflow.com/questions/161813/how-to-resolve-merge-conflicts-in-git)，如果你更倾向于使用GUI的话，请参考[链接](https://stackoverflow.com/questions/38216541/visual-studio-code-how-to-resolve-merge-conflicts-with-git)以VSCode为例子。
