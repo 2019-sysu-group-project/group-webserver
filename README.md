@@ -16,7 +16,7 @@
     - 如果商家已经没有优惠券了，则直接返回一个错误码。
 
 # 如何部署redis、mysql和消息队列
-运行如下命令（通过[链接](https://stackoverflow.com/questions/36685980/docker-is-installed-but-docker-compose-is-not-why)安装docker-compose，安装docker并通过[链接](https://blog.csdn.net/whatday/article/details/86770609)将docker源切换成国内源）：
+在group-webserver目录下，运行如下命令（通过[链接](https://stackoverflow.com/questions/36685980/docker-is-installed-but-docker-compose-is-not-why)安装docker-compose，安装docker并通过[链接](https://blog.csdn.net/whatday/article/details/86770609)将docker源切换成国内源）：
 ```
 docker-compose up
 ```
