@@ -2,4 +2,4 @@
 !image/
 !src/webserver/
 !README.md
-.gitignore
+!.gitignore
