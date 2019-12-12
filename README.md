@@ -30,7 +30,12 @@
 
 在开发之前，如果你不熟悉golang的web开发，点击[链接](https://github.com/astaxie/build-web-application-with-golang)开始一个简单的入门，包含golang的相关概念，以及web开发的一些技术。
 
+Golang第三方包下载会非常慢，因此，使用七牛云来加速go get获取第三方库的过程，[参考链接](https://github.com/goproxy/goproxy.cn)。
+
+
 ### 各项任务细节
+开发使用golang的[gbin框架](https://github.com/gin-gonic/gin)。
+
 任务1，用户注册，用户登录：
 1. 使用JWT作为用户认证的方式，如果你不清楚JWT，参考[链接](http://www.ruanyifeng.com/blog/2018/07/json_web_token-tutorial.html)
 2. 需要额外编写JWT认证的函数。具体见代码部分。

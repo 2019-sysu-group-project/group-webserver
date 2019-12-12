@@ -1,5 +1,5 @@
-**/.vscode/**
-**/bin/**
-**/pkg/**
-**/src/github.com/**
-**/src/golang.org/**
+*
+!image/
+!src/webserver/
+!README.md
+.gitignore
