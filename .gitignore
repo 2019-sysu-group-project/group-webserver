@@ -1,5 +1,6 @@
 *
-!image/
-!src/webserver/
-!README.md
 !.gitignore
+# !image/
+# !src/
+# !src/webserver/
+# !README.md
