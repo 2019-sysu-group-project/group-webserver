@@ -36,9 +36,20 @@ Golang第三方包下载会非常慢，因此，使用七牛云来加速go get�
 ### 各项任务细节
 开发使用golang的[gbin框架](https://github.com/gin-gonic/gin)。
 
+代码文件
+1. src/weserver/server.go # 开发的主要编写函数
+2. src/weserver/server_test.go # 依照[链接](https://github.com/gin-gonic/gin#testing)写好测试用例，以便项目维护者测试你的函数。
+
 任务1，用户注册，用户登录：
 1. 使用JWT作为用户认证的方式，如果你不清楚JWT，参考[链接](http://www.ruanyifeng.com/blog/2018/07/json_web_token-tutorial.html)
-2. 需要额外编写JWT认证的函数。具体见代码部分。
+2. 需要额外编写JWT认证的函数。具体见代码部分。（任务2和任务3需要调用该函数的部分，开发时，默认返回true）
+
+任务2，商家新建优惠券，获取优惠券信息：
+1. 对优惠券的获取，需要先在redis里寻找是否有该优惠券的信息，如果没有，则需要从数据库中读取优惠券信息，然后将优惠券信息写入redis中，最后再将该信息返回到请求端。
+2. 需要编写一个函数(getCouponsFromRedisOrDatabase)以供任务3调用
+3. 商家新建优惠券，是直接写入数据库的操作。
 
 关于任务3，用户获取优惠券，定义流程如下：
-1. 首先从redis里，知道redis是否有该商家的
+1. 使用任务2中的getCouponsFromRedisOrDatabase函数获得优惠券信息
+2. 然后开始抢票，增减字段细节见接口文档
+3. webserver逻辑减少商家优惠券数量后，将这个变更首先写入Redis，然后写入数据库，但是注意，写入数据库的操作需要通过消息队列来完成，具体做法是，首先将连接socket存在一个哈希表中，然后将写入数据库的请求发送到消息队列的入队列中，然后有一个协程不断地轮询消息队列的出队列，如果检查到该写入操作成功发生，则通过哈希表，找到连接socket字段，将查询到的成功或者失败的信息（见消息队列描述）写入socket连接，从而返回给客户端。
