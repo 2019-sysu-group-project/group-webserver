@@ -15,6 +15,18 @@
     - 如果商家还有优惠券，则执行利用消息队列执行写操作。
     - 如果商家已经没有优惠券了，则直接返回一个错误码。
 
+# 如何部署redis、mysql和消息队列
+运行如下命令（通过[链接](https://stackoverflow.com/questions/36685980/docker-is-installed-but-docker-compose-is-not-why)安装docker-compose，安装docker并通过[链接](https://blog.csdn.net/whatday/article/details/86770609)将docker源切换成国内源）：
+```
+docker-compose up
+```
+目前只有以下服务能够访问
+- [x] redis -> host: 127.0.0.1 port: 16379 db: 0（默认db） -> 目前可用
+- [ ] mysql -> host: 127.0.0.1 port: 13306 username: user password: 123 database_name: projectdb -> 目前不可用
+- [ ] 消息队列 -> 目前不可用
+
+当其他部分开发完毕之后，将会更新在这个仓库中。届时，请按照staring-tutorial的方式更新你的开发仓库。
+
 ## Todo List
 - 接口文档，参照[链接](https://www.eolinker.com/#/share/index?shareCode=1P4kre)
 - 说明文档，参照[链接](https://shimo.im/docs/9vtcTDHJDYQr8xVp/read)
@@ -45,6 +57,7 @@ Golang第三方包下载会非常慢，因此，使用七牛云来加速go get�
 2. 需要额外编写JWT认证的函数。具体见代码部分。（任务2和任务3需要调用该函数的部分，开发时，默认返回true）
 
 任务2，商家新建优惠券，获取优惠券信息：
+1. 初始化redis连接（已经提供了部分代码）
 1. 对优惠券的获取，需要先在redis里寻找是否有该优惠券的信息，如果没有，则需要从数据库中读取优惠券信息，然后将优惠券信息写入redis中，最后再将该信息返回到请求端。
 2. 需要编写一个函数(getCouponsFromRedisOrDatabase)以供任务3调用
 3. 商家新建优惠券，是直接写入数据库的操作。
