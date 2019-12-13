@@ -4,3 +4,7 @@ services:
     image: "redis:alpine"
     ports: 
       - "16379:6379"
+  projectdb:
+    image: "registry.cn-shenzhen.aliyuncs.com/weimch/group-project-mysql:v0.0.1"
+    ports: 
+      - "13306:3306"

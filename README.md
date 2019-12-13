@@ -22,7 +22,7 @@ docker-compose up
 ```
 目前只有以下服务能够访问
 - [x] redis -> host: 127.0.0.1 port: 16379 db: 0（默认db） -> 目前可用
-- [ ] mysql -> host: 127.0.0.1 port: 13306 username: user password: 123 database_name: projectdb -> 目前不可用
+- [x] mysql -> host: 127.0.0.1 port: 13306 username: root password: 123 database_name: projectdb -> 目前可用
 - [ ] 消息队列 -> 目前不可用
 
 当其他部分开发完毕之后，将会更新在这个仓库中。届时，请按照staring-tutorial的方式更新你的开发仓库。
