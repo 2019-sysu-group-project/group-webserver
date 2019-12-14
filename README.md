@@ -46,7 +46,7 @@ Golang第三方包下载会非常慢，因此，使用七牛云来加速go get�
 
 
 ### 各项任务细节
-开发使用golang的[gbin框架](https://github.com/gin-gonic/gin)。
+开发使用golang的[gin框架](https://github.com/gin-gonic/gin)。
 
 代码文件
 1. src/weserver/server.go # 开发的主要编写函数
