@@ -1,9 +1,9 @@
 package main
 
 import (
-	"os"
 	"database/sql"
 	"fmt"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis"
@@ -78,11 +78,21 @@ func getCouponsInformation(c *gin.Context) {
 }
 
 // 任务2
+func getCouponsFromRedis(username string, coupons string) Coupon {
+	return Coupon{}
+}
+
+// 任务2
+func setCouponsToRedis(usernam string, coupons Coupon) {
+
+}
+
+// 任务2
 func getCouponsFromRedisOrDatabase(username string, coupons string) Coupon {
 	return Coupon{}
 }
 
-// 任务2先写，任务3在任务2的基础上写
+// 任务3
 func setCouponsToRedisAndDatabase(coupon Coupon) bool {
 	// true set成功，false set失败
 	return true
