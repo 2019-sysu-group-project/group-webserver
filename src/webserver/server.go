@@ -92,7 +92,7 @@ func getCouponsFromRedisOrDatabase(username string, coupons string) Coupon {
 	return Coupon{}
 }
 
-// 任务3
+// 任务3 - 使用getCouponsFromRedis和setCouponsToRedis来完成该任务
 func setCouponsToRedisAndDatabase(coupon Coupon) bool {
 	// true set成功，false set失败
 	return true
