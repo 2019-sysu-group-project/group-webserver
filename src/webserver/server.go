@@ -4,11 +4,11 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis"
 	 "github.com/go-sql-driver/mysql"
-	"encoding/json"
 )
 
 // redis 默认是没有密码和使用0号db
@@ -53,7 +53,7 @@ type Coupon struct {
 }
 
 // hashset 存储元组(用户名, Coupon)
-var hashset map[string]string{}
+hashset := make(map[string]string)
 
 // 任务1
 func registerUser(c *gin.Context) {
@@ -97,8 +97,9 @@ func getCouponsFromRedisOrDatabase(username string, coupons string) Coupon {
 }
 
 // 任务3 - 使用getCouponsFromRedis和setCouponsToRedis来完成该任务
-func setCouponsToRedisAndDatabase(coupon Coupon) bool {
+func setCouponsToRedisAndDatabase(coupon Coupon, time int) bool {
 	// true set成功，false set失败
+	
 	return true
 }
 
@@ -140,7 +141,7 @@ func patchCoupons(c *gin.Context) {
 	}
 
 	coupon.left--
-	write, err := setCouponsToRedisAndDatabase(coupon)
+	write, err := setCouponsToRedisAndDatabase(coupon, time.Now().UnixNano())
 	// 5xx: 服务端错误
 	if err != nil {
 		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
