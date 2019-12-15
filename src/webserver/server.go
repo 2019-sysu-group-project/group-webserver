@@ -160,10 +160,8 @@ func patchCoupons(c *gin.Context) {
 	}
 }
 
-func main() {
-	// gin.SetMode(gin.ReleaseMode)
+func setupRouter() *gin.Engine{
 	router := gin.Default()
-
 	router.PATCH("/api/users/:username/coupons/:name", patchCoupons)
 	router.POST("/api/users", registerUser)
 
@@ -171,7 +169,13 @@ func main() {
 	router.POST("/api/users/:username/coupons", createCoupons)
 
 	router.GET("/api/users/:username/coupons", getCouponsInformation)
+	return router
+}
 
+
+func main() {
+	// gin.SetMode(gin.ReleaseMode)
+	router := setupRouter()
 	err := router.Run(":8080")
 	if err != nil {
 		fmt.Println("Error starting server")
