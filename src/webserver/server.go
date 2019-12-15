@@ -53,6 +53,7 @@ type Coupon struct {
 }
 
 // hashset 存储元组(用户名, Coupon)
+var hashset map[string]string
 hashset := make(map[string]string)
 
 // 任务1
