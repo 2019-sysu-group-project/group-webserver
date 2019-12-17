@@ -8,6 +8,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
+
+	"net/http"
+	"crypto/md5"
+	"io"
 )
 
 // redis 默认是没有密码和使用0号db
@@ -51,20 +55,84 @@ type Coupon struct {
 	description string
 }
 
-// 任务1
-func registerUser(c *gin.Context) {
-	fmt.Println("This is registerUser")
+type User struct {
+	username	string
+	password	string
+	kind		int
 }
 
 // 任务1
-func validateJWT() bool {
+func registerUser(c *gin.Context) {
+	// fmt.Println("This is registerUser")
+	var json User
+
+	if c.BindJSON(&json) == nil {
+		username := json.username
+		password := json.password
+		kind := json.kind
+		if isUserExist(username) {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"errMsg": "Username already exists!",
+			})
+		} else {
+			passwordHash := md5Hash(password)
+
+			// insert user to DB
+			insertUser(username, passwordHash, kind)
+
+			c.JSON(http.StatusOK, gin.H{
+				"errMsg": "",
+			})
+		}
+	}
+}
+
+// 任务1
+func validateJWT(username string, password string) bool {
 	// 需要编写JWT的验证机制，作为其他人能调用的一部分
 	return true
 }
 
 // 任务1
 func userLogin(c *gin.Context) {
+	var json User
+	if c.BindJSON(&json) == nil {
+		if validateJWT(json.username, json.password) {
+			c.JSON(http.StatusOK, gin.H{
+				"kind": "",
+				"errMsg": "",
+			})
+		} else {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"kind": "",
+				"errMsg": "Login failed.",
+			})
+		}
+	}
+}
 
+// check if the user already exists in DB
+func isUserExist(query_username string) bool {
+	// undo: query user from DB
+	var user User
+
+	err := mysql_client.QueryRow("SELECT username, password, kind FROM User where username=?", query_username).Scan(&user.username, &user.password, &user.kind)
+	if err == sql.ErrNoRows {
+
+	}
+
+	return false
+}
+
+// md5
+func md5Hash(data string) string {
+	hash := md5.New()
+	io.WriteString(hash, data)
+	return fmt.Sprintf("%x", hash.Sum(nil))
+}
+
+func insertUser(username string, password string, kind int) {
+	// insert user to DB
 }
 
 // 任务2
@@ -93,10 +161,8 @@ func patchCoupons(c *gin.Context) {
 
 }
 
-func main() {
-	// gin.SetMode(gin.ReleaseMode)
+func setupRouter() *gin.Engine{
 	router := gin.Default()
-
 	router.PATCH("/api/users/:username/coupons/:name", patchCoupons)
 	router.POST("/api/users", registerUser)
 
@@ -104,7 +170,13 @@ func main() {
 	router.POST("/api/users/:username/coupons", createCoupons)
 
 	router.GET("/api/users/:username/coupons", getCouponsInformation)
+	return router
+}
 
+
+func main() {
+	// gin.SetMode(gin.ReleaseMode)
+	router := setupRouter()
 	err := router.Run(":8080")
 	if err != nil {
 		fmt.Println("Error starting server")
