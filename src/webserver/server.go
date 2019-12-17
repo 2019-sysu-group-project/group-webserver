@@ -92,7 +92,7 @@ func registerUser(c *gin.Context) {
 }
 
 // 任务1
-func validateJWT(username string, password string) bool {
+func validateJWT() bool {
 	// 需要编写JWT的验证机制，作为其他人能调用的一部分
 	return true
 }
@@ -101,7 +101,7 @@ func validateJWT(username string, password string) bool {
 func userLogin(c *gin.Context) {
 	var json User
 	if c.BindJSON(&json) == nil {
-		if validateJWT(json.username, json.password) {
+		if authenticateUser(json.username, json.password) {
 			c.JSON(200, gin.H{
 				"kind": "",
 				"errMsg": "",
@@ -117,11 +117,8 @@ func userLogin(c *gin.Context) {
 
 // check if the user already exists in DB
 func isUserExist(query_username string) bool {
-	// undo: query user from DB
 	var user User
-
 	err := mysql_client.QueryRow("SELECT username, password, kind FROM User WHERE username=?", query_username).Scan(&user.username, &user.password, &user.kind)
-
 	if err == sql.ErrNoRows {		// user not exists
 		return false
 	} else {
@@ -136,8 +133,8 @@ func md5Hash(data string) string {
 	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 
-func insertUser(username string, password string, kind int) {
-	// insert user to DB
+// insert user into DB
+func insertUser(username string, password string, kind int) bool {
 	result, err := mysql_client.Exec("INSERT INTO User(username, password, kind) VALUES(?,?,?)", username, password, kind)
 	if err != nil {
 		// insert failed
@@ -152,6 +149,23 @@ func insertUser(username string, password string, kind int) {
 		return false
 	}
 	return true
+}
+
+// authenticate user from DB
+func authenticateUser(username string, password string) bool {
+	passwordHash := md5Hash(password)
+	var user User
+	err := mysql_client.QueryRow("SELECT username, password FROM User WHERE username=?", username).Scan(&user.username, &user.password)
+	if err == sql.ErrNoRows {
+		return false
+	} else {
+		if user.username == username {
+			if username.password == passwordHash {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // 任务2
