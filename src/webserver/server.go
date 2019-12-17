@@ -70,19 +70,23 @@ func registerUser(c *gin.Context) {
 		username := json.username
 		password := json.password
 		kind := json.kind
-		if isUserExist(username) {
-			c.JSON(http.StatusUnauthorized, gin.H{
+		if isUserExist(username) {		// user already exists
+			c.JSON(400, gin.H{
 				"errMsg": "Username already exists!",
 			})
 		} else {
 			passwordHash := md5Hash(password)
 
 			// insert user to DB
-			insertUser(username, passwordHash, kind)
-
-			c.JSON(http.StatusOK, gin.H{
-				"errMsg": "",
-			})
+			if insertUser(username, passwordHash, kind) {
+				c.JSON(200, gin.H{
+					"errMsg": "",
+				})
+			} else {
+				c.JSON(400, gin.H{
+					"errMsg": "Create user failed!"
+				})
+			}
 		}
 	}
 }
@@ -98,12 +102,12 @@ func userLogin(c *gin.Context) {
 	var json User
 	if c.BindJSON(&json) == nil {
 		if validateJWT(json.username, json.password) {
-			c.JSON(http.StatusOK, gin.H{
+			c.JSON(200, gin.H{
 				"kind": "",
 				"errMsg": "",
 			})
 		} else {
-			c.JSON(http.StatusUnauthorized, gin.H{
+			c.JSON(401, gin.H{
 				"kind": "",
 				"errMsg": "Login failed.",
 			})
@@ -116,12 +120,13 @@ func isUserExist(query_username string) bool {
 	// undo: query user from DB
 	var user User
 
-	err := mysql_client.QueryRow("SELECT username, password, kind FROM User where username=?", query_username).Scan(&user.username, &user.password, &user.kind)
-	if err == sql.ErrNoRows {
+	err := mysql_client.QueryRow("SELECT username, password, kind FROM User WHERE username=?", query_username).Scan(&user.username, &user.password, &user.kind)
 
+	if err == sql.ErrNoRows {		// user not exists
+		return false
+	} else {
+		return true
 	}
-
-	return false
 }
 
 // md5
@@ -133,6 +138,20 @@ func md5Hash(data string) string {
 
 func insertUser(username string, password string, kind int) {
 	// insert user to DB
+	result, err := mysql_client.Exec("INSERT INTO User(username, password, kind) VALUES(?,?,?)", username, password, kind)
+	if err != nil {
+		// insert failed
+		return false
+	}
+	lastInsertID, err := result.lastInsertId()
+	if err != nil {
+		return false
+	}
+	rowsaffected, err := result.RowsAffected()
+	if err != nil {
+		return false
+	}
+	return true
 }
 
 // 任务2
