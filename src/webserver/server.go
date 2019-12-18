@@ -4,10 +4,12 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis"
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/go-sql-driver/mysql"
+	"server/mqueue"
 )
 
 // redis 默认是没有密码和使用0号db
@@ -51,6 +53,10 @@ type Coupon struct {
 	description string
 }
 
+// hashset 存储元组(用户名, Coupon)
+var hashset map[string]string
+hashset := make(map[string]string)
+
 // 任务1
 func registerUser(c *gin.Context) {
 	fmt.Println("This is registerUser")
@@ -92,13 +98,96 @@ func getCouponsFromRedisOrDatabase(username string, coupons string) Coupon {
 	return Coupon{}
 }
 
-// 任务3 - 使用getCouponsFromRedis和setCouponsToRedis来完成该任务
+// 任务3 - 使用getCouponsFromRedis和setCouponsToRedis来完成该任务	
 func setCouponsToRedisAndDatabase(coupon Coupon) bool {
 	// true set成功，false set失败
 	return true
 }
 
 // 任务3
+func patchCoupons(c *gin.Context) {	
+	var err error
+	user, err := validateJWT()
+	// 5xx: 服务端错误
+	if err != nil {
+		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
+		return
+	}
+	// TODO 401: 认证失败
+	else user.author == false {
+		c.JSON(401, gin.H{"errMsg": "Authorization Failed"})
+		return
+	}
+
+	var coupon Coupon
+	username := c.Param("username")
+	name := c.Param("name")
+	// 204: 已经有了优惠券
+	_, exists := hashset[user] //hashset[user.username]
+	if exists {
+		c.JSON(204, gin.H{"errMsg": "Already had the same coupon"})
+		return
+	}
+
+	coupon, err := getCouponsFromRedisOrDatabase(username, name)
+	// 5xx: 服务端错误
+	if err != nil {
+		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
+		return
+	}
+	// 204: 优惠券无库存
+	if coupon.left == 0 {
+		c.JSON(204, gin.H{"errMsg": "The coupon is out of stock"})
+		return
+	}
+
+	coupon.left--
+	write, err := setCouponsToRedisAndDatabase(coupon, time.Now().UnixNano())
+	// 5xx: 服务端错误
+	if err != nil {
+		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
+		return
+	}
+	// 204: 未抢到
+	if write == false {
+		c.JSON(204, gin.H{"errMsg": "Patch Failed"})
+		return
+	}
+	// 将用户请求转发到消息队列中，等待消息队列对mysql进行操作并返回结果
+	t := time.Now()
+	mqueue.SendMessage(username, name, t.Unix())
+	err, res := mqueue.ReceiveMessage(username, name, t.Unix())
+	if err != nil {
+		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
+		return
+	}
+
+	//返回0代表优惠券数目为0，返回2代表抢券成功，返回1代表用户已经抢到该券不可重复抢，返回-1代表数据库访问错误
+	switch res {
+		case -1:
+			c.JSON(504, gin.H{"errMsg": "Mysql Server error"})
+			return
+		case 0:
+			c.JSON(204, gin.H{"errMsg": "The coupon is out of stock"})
+		    return
+		case 1:
+			c.JSON(204, gin.H{"errMsg": "Already had the same coupon"})
+		    return
+		case 2:
+			// 201: 成功抢到
+			c.JSON(201, gin.H{"errMsg": "Patch Succeeded"})
+			return
+		default:
+			c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
+			return
+	 }
+
+}
+
+func main() {
+	// gin.SetMode(gin.ReleaseMode)
+	router := gin.Default()
+
 func patchCoupons(c *gin.Context) {
 
 }
@@ -112,6 +201,7 @@ func setupRouter() *gin.Engine{
 	router.POST("/api/users/:username/coupons", createCoupons)
 
 	router.GET("/api/users/:username/coupons", getCouponsInformation)
+
 	return router
 }
 
