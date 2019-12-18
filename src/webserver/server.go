@@ -4,10 +4,13 @@ import (
 	"os"
 	"database/sql"
 	"fmt"
+	"time"
+	"errors"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
+	jwt "github.com/dgrijalva/jwt-go"
 
 	"net/http"
 	"crypto/md5"
@@ -56,10 +59,14 @@ type Coupon struct {
 }
 
 type User struct {
-	username	string
-	password	string
-	kind		int
+	Username	string
+	Password	string
+	Kind		int
 }
+
+var(
+	key []byte = []byte("JWT key of GXNXFD")
+)
 
 // 任务1
 func registerUser(c *gin.Context) {
@@ -67,9 +74,9 @@ func registerUser(c *gin.Context) {
 	var json User
 
 	if c.BindJSON(&json) == nil {
-		username := json.username
-		password := json.password
-		kind := json.kind
+		username := json.Username
+		password := json.Password
+		kind := json.Kind
 		if isUserExist(username) {		// user already exists
 			c.JSON(400, gin.H{
 				"errMsg": "Username already exists!",
@@ -79,21 +86,43 @@ func registerUser(c *gin.Context) {
 
 			// insert user to DB
 			if insertUser(username, passwordHash, kind) {
-				c.JSON(200, gin.H{
+				c.JSON(201, gin.H{
 					"errMsg": "",
 				})
 			} else {
 				c.JSON(400, gin.H{
-					"errMsg": "Create user failed!"
+					"errMsg": "Create user failed!",
 				})
 			}
 		}
 	}
 }
 
+// generate JWT token
+func genToken() string {
+	claims := &jwt.StandardClaims{
+		NotBefore: int64(time.Now().Unix()),
+		ExpiresAt: int64(time.Now().Unix() + 3600),
+		Issuer:    "GXNXFD",
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	ss, err := token.SignedString(key)
+	if err != nil {
+		return ""
+	}
+	return ss
+}
+
 // 任务1
-func validateJWT() bool {
+func validateJWT(c *gin.Context) bool {
 	// 需要编写JWT的验证机制，作为其他人能调用的一部分
+	token := c.Request.Header.Get("Authorization")
+	_, err := jwt.Parse(token, func(*jwt.Token) (interface{}, error) {
+		return key, nil
+	})
+	if err != nil {
+		return false
+	}
 	return true
 }
 
@@ -101,11 +130,30 @@ func validateJWT() bool {
 func userLogin(c *gin.Context) {
 	var json User
 	if c.BindJSON(&json) == nil {
-		if authenticateUser(json.username, json.password) {
-			c.JSON(200, gin.H{
-				"kind": "",
-				"errMsg": "",
-			})
+		if authenticateUser(json.Username, json.Password) {
+			token := genToken()
+			if token == "" {
+				c.JSON(401, gin.H{
+					"kind": "",
+					"errMsg": "Generate token failed.",
+				})
+			} else {
+				passwordHash := md5Hash(password)
+				var user User
+				err := mysql_client.QueryRow("SELECT kind FROM User WHERE username=?", username).Scan(&user.Kind)
+				if err != nil {
+					c.JSON(500, gin.H{
+						"kind": "",
+						"errMsg": "Query DB failed.",
+					})
+				} else {
+					c.JSON(200, gin.H{
+						"Authorization": token,
+						"kind": user.Kind,
+						"errMsg": "",
+					})
+				}
+			}
 		} else {
 			c.JSON(401, gin.H{
 				"kind": "",
@@ -118,7 +166,7 @@ func userLogin(c *gin.Context) {
 // check if the user already exists in DB
 func isUserExist(query_username string) bool {
 	var user User
-	err := mysql_client.QueryRow("SELECT username, password, kind FROM User WHERE username=?", query_username).Scan(&user.username, &user.password, &user.kind)
+	err := mysql_client.QueryRow("SELECT username, password, kind FROM User WHERE username=?", query_username).Scan(&user.Username, &user.Password, &user.Kind)
 	if err == sql.ErrNoRows {		// user not exists
 		return false
 	} else {
@@ -155,12 +203,12 @@ func insertUser(username string, password string, kind int) bool {
 func authenticateUser(username string, password string) bool {
 	passwordHash := md5Hash(password)
 	var user User
-	err := mysql_client.QueryRow("SELECT username, password FROM User WHERE username=?", username).Scan(&user.username, &user.password)
+	err := mysql_client.QueryRow("SELECT username, password FROM User WHERE username=?", username).Scan(&user.Username, &user.Password)
 	if err == sql.ErrNoRows {
 		return false
 	} else {
-		if user.username == username {
-			if username.password == passwordHash {
+		if user.Username == username {
+			if username.Password == passwordHash {
 				return true
 			}
 		}
