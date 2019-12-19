@@ -67,91 +67,130 @@ func userLogin(c *gin.Context) {
 
 }
 
-//2
-//将Coupon拼接成字符串，以#分隔：...#...#...
+//任务2
+type CouponV2 struct{
+	Username string `json:"username"`
+
+	Coupons string  `json:"coupons"`
+
+	Amount int32	`json:"amount"`
+
+	Stock float32	`json:"stock"`
+
+	Left int32		`json:"left"`
+
+	Description string	`json:"description"`
+}
+//任务2
+func (c *CouponV2) ToCoupon() Coupon {
+	var cou Coupon
+	cou.username=c.Username
+	cou.coupons=c.Coupons
+	cou.amount=c.Amount
+	cou.stock=c.Stock
+	cou.left=c.Left
+	cou.description=c.Description
+	return cou
+}
+//任务2，将Coupon拼接成字符串，以#分隔：...#...#...
 func (c *Coupon) ToString() string {
 	var s string
 	s = fmt.Sprintf("%s#%s#%d#%f#%d#%s", c.username, c.coupons, c.amount,
 		c.stock, c.left, c.description)
 	return s
 }
-//2
-//将字符串转换成Coupon
+
+//任务2，将字符串转换成Coupon
 func (c *Coupon) ToCoupon(s string) {
 	j := strings.LastIndex(s, "#")
 	c.description = s[j+1:]
 	s = s[:j]
 	j = strings.LastIndex(s, "#")
-	left, _ := strconv.ParseInt(s[j+1:], 10, 32)
-	c.left = int32(left)
+	Left_coupons, _ := strconv.ParseInt(s[j+1:], 10, 32)
+	c.left = int32(Left_coupons)
 	s = s[:j]
 	j = strings.LastIndex(s, "#")
-	stock, _ := strconv.ParseFloat(s[j+1:], 32)
-	c.stock = float32(stock)
+	Stock, _ := strconv.ParseFloat(s[j+1:], 32)
+	c.stock = float32(Stock)
 	s = s[:j]
 	j = strings.LastIndex(s, "#")
-	amount, _ := strconv.ParseInt(s[j+1:], 10, 32)
-	c.amount = int32(amount)
+	Amount, _ := strconv.ParseInt(s[j+1:], 10, 32)
+	c.amount = int32(Amount)
 	s = s[:j]
 	j = strings.LastIndex(s, "#")
 	c.coupons = s[j+1:]
 	s = s[:j]
 	c.username = s
-	fmt.Println(c.description)
 }
-
-
 
 // 任务2
 func createCoupons(c *gin.Context) {
-	var couponJSON Coupon
-	err := c.ShouldBind(&couponJSON)
+	var couponJSON CouponV2
+	err := c.BindJSON(&couponJSON)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	} else {
 		mysql_client.Query("insert into Coupon values(?,?,?,?,?,?)",
-			couponJSON.username, couponJSON.coupons, couponJSON.amount,
-			couponJSON.stock, couponJSON.left, couponJSON.description)
+			couponJSON.Username, couponJSON.Coupons, couponJSON.Amount,
+			couponJSON.Stock, couponJSON.Left, couponJSON.Description)
 		c.JSON(http.StatusOK, gin.H{"status": "success"})
 	}
 }
 
 // 任务2
 func getCouponsInformation(c *gin.Context) {
-	var couponJSON Coupon
-	couponJSON.username=c.Param("username")
-	couponJSON.coupons=c.Param("coupons")
-	coupon := getCouponsFromRedisOrDatabase(couponJSON.username, couponJSON.coupons)
-	c.JSON(http.StatusOK, gin.H{"username": coupon.username, "coupons": coupon.coupons,
-		"amount": coupon.amount, "stock": coupon.stock, "left_coupons": coupon.left,
-		"description": coupon.description})
+	
+	Username:=c.Query("username")
+
+	Coupons:=c.Query("coupons")
+
+	coupon, err := getCouponsFromRedisOrDatabase(Username, Coupons)
+
+	if err == nil{
+
+		c.JSON(http.StatusOK, gin.H{"username": coupon.username, "coupons": coupon.coupons,
+
+			"amount": coupon.amount, "stock": coupon.stock, "left": coupon.left,
+
+			"description": coupon.description})
+	}else{
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	}
 }
 
 // 任务2
-func getCouponsFromRedis(username string, cou string) (Coupon, error) {
-	re, err := redis_client.Get(username + " " + cou).Result()
+func getCouponsFromRedis(Username string, cou string) (Coupon, error) {
+	re, err := redis_client.Get(Username + "#" + cou).Result()
 	var result Coupon
-	result.ToCoupon(re)
+	if err == nil{
+		result.ToCoupon(re)
+	}
 	return result, err
 }
 
 // 任务2
-func setCouponsToRedis(username string, cou Coupon) {
-	redis_client.Set(username+" "+cou.coupons, cou.ToString(), 1000)
+func setCouponsToRedis(Username string, cou Coupon) {
+	redis_client.Set(Username+"#"+cou.coupons, cou.ToString(), 0)
 }
 
 // 任务2
-func getCouponsFromRedisOrDatabase(username string, cou string) Coupon {
+func getCouponsFromRedisOrDatabase(Username string, cou string) (Coupon,error) {
 	var result Coupon
-	result, err := getCouponsFromRedis(username, cou)
+	result, err := getCouponsFromRedis(Username, cou)
 	if err != nil {
-		query, _ := mysql_client.Query("SELECT * FROM Coupon WHERE username=? AND coupons=?", username, cou)
-		query.Scan(&result.username, &result.coupons, &result.amount,
-			&result.stock, &result.left, &result.description)
-		setCouponsToRedis(username, result)
+		query, err := mysql_client.Query("SELECT * FROM Coupon WHERE Username=? AND Coupons=?", Username, cou)
+		if err == nil{
+			defer query.Close()
+			query.Next()
+			query.Scan(&result.username, &result.coupons, &result.amount,
+				&result.stock, &result.left, &result.description)
+			fmt.Println("Error")
+			setCouponsToRedis(Username, result)
+		}
 	}
-	return result
+	return result,err
 }
+
 
 // 任务3 - 使用getCouponsFromRedis和setCouponsToRedis来完成该任务
 func setCouponsToRedisAndDatabase(coupon Coupon) bool {
