@@ -10,7 +10,7 @@ import (
 )
 
 var MQConnection *amqp.Connection
-var RequestResult map[string]int
+var RequestResult = make(map[string]int)
 
 var maxConnectionTime = 5
 

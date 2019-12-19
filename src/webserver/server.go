@@ -6,10 +6,10 @@ import (
 	"os"
 	"time"
 
+	"server/mqueue"
+
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis"
-	"github.com/go-sql-driver/mysql"
-	"server/mqueue"
 	uuid "github.com/satori/go.uuid"
 )
 
@@ -98,7 +98,7 @@ func getCouponsFromRedisOrDatabase(username string, coupons string) Coupon {
 	return Coupon{}
 }
 
-// 任务3 - 使用getCouponsFromRedis和setCouponsToRedis来完成该任务	
+// 任务3 - 使用getCouponsFromRedis和setCouponsToRedis来完成该任务
 func setCouponsToRedisAndDatabase(coupon Coupon) bool {
 	// true set成功，false set失败
 	return true
@@ -153,7 +153,7 @@ func patchCoupons(c *gin.Context) {
 		c.JSON(204, gin.H{"errMsg": "Patch Failed"})
 		return
 	}
-	
+
 	// 将用户请求转发到消息队列中，等待消息队列对mysql进行操作并返回结果
 	t := time.Now()
 	// 生成uuid
@@ -173,35 +173,30 @@ func patchCoupons(c *gin.Context) {
 
 	//返回0代表优惠券数目为0，返回2代表抢券成功，返回1代表用户已经抢到该券不可重复抢，返回-1代表数据库访问错误，返回-2代表超时
 	switch res {
-		case -2:
-			c.JSON(504, gin.H{"errMsg": "Mysql Server error"})
-			return
-		case -1:
-			c.JSON(504, gin.H{"errMsg": "Mysql Server error"})
-			return
-		case 0:
-			c.JSON(204, gin.H{"errMsg": "The coupon is out of stock"})
-		    return
-		case 1:
-			c.JSON(204, gin.H{"errMsg": "Already had the same coupon"})
-		    return
-		case 2:
-			// 201: 成功抢到
-			c.JSON(201, gin.H{"errMsg": "Patch Succeeded"})
-			return
-		default:
-			c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
-			return
-	 }
+	case -2:
+		c.JSON(504, gin.H{"errMsg": "Mysql Server error"})
+		return
+	case -1:
+		c.JSON(504, gin.H{"errMsg": "Mysql Server error"})
+		return
+	case 0:
+		c.JSON(204, gin.H{"errMsg": "The coupon is out of stock"})
+		return
+	case 1:
+		c.JSON(204, gin.H{"errMsg": "Already had the same coupon"})
+		return
+	case 2:
+		// 201: 成功抢到
+		c.JSON(201, gin.H{"errMsg": "Patch Succeeded"})
+		return
+	default:
+		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
+		return
+	}
 
 }
 
-// 任务3
-func patchCoupons(c *gin.Context) {
-
-}
-
-func setupRouter() *gin.Engine{
+func setupRouter() *gin.Engine {
 	router := gin.Default()
 	router.PATCH("/api/users/:username/coupons/:name", patchCoupons)
 	router.POST("/api/users", registerUser)
@@ -212,7 +207,6 @@ func setupRouter() *gin.Engine{
 	router.GET("/api/users/:username/coupons", getCouponsInformation)
 	return router
 }
-
 
 func main() {
 	// gin.SetMode(gin.ReleaseMode)
