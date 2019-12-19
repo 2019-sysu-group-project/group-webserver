@@ -8,7 +8,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis"
-	 "github.com/go-sql-driver/mysql"
 )
 
 // redis 默认是没有密码和使用0号db
@@ -53,8 +52,7 @@ type Coupon struct {
 }
 
 // hashset 存储元组(用户名, Coupon)
-var hashset map[string]string
-hashset := make(map[string]string)
+var hashset = make(map[string]string)
 
 // 任务1
 func registerUser(c *gin.Context) {
@@ -98,28 +96,27 @@ func getCouponsFromRedisOrDatabase(username string, coupons string) Coupon {
 }
 
 // 任务3 - 使用getCouponsFromRedis和setCouponsToRedis来完成该任务
-func setCouponsToRedisAndDatabase(coupon Coupon, time int) bool {
+func setCouponsToRedisAndDatabase(coupon Coupon, time int64) bool {
 	// true set成功，false set失败
-	
+
 	return true
 }
 
 // 任务3
-func patchCoupons(c *gin.Context) {	
+func patchCoupons(c *gin.Context) {
 	var err error
-	user, err := validateJWT()
+	user := validateJWT()
 	// 5xx: 服务端错误
 	if err != nil {
 		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
 		return
 	}
 	// TODO 401: 认证失败
-	else user.author == false {
+	if user.author == false {
 		c.JSON(401, gin.H{"errMsg": "Authorization Failed"})
 		return
 	}
 
-	var coupon Coupon
 	username := c.Param("username")
 	name := c.Param("name")
 	// 204: 已经有了优惠券
@@ -129,7 +126,7 @@ func patchCoupons(c *gin.Context) {
 		return
 	}
 
-	coupon, err := getCouponsFromRedisOrDatabase(username, name)
+	coupon := getCouponsFromRedisOrDatabase(username, name)
 	// 5xx: 服务端错误
 	if err != nil {
 		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
@@ -142,7 +139,7 @@ func patchCoupons(c *gin.Context) {
 	}
 
 	coupon.left--
-	write, err := setCouponsToRedisAndDatabase(coupon, time.Now().UnixNano())
+	write := setCouponsToRedisAndDatabase(coupon, time.Now().UnixNano())
 	// 5xx: 服务端错误
 	if err != nil {
 		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
@@ -155,6 +152,7 @@ func patchCoupons(c *gin.Context) {
 	}
 	// 201: 成功抢到
 	if write == true {
+		hashset[user.username] = username + "_" + name
 		c.JSON(201, gin.H{"errMsg": "Patch Succeeded"})
 		return
 	}
