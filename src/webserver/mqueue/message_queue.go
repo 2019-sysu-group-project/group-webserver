@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/streadway/amqp"
 )
@@ -11,12 +12,18 @@ import (
 type RequestMessage struct {
 	username    string
 	coupon      string
-	requestTime int64 // 用户发起请求的时间
-	result int
+	uuid        string // 表示用户发起请求的唯一id
+	requestTime int64  // 用户发起请求的时间
+	result      int
+}
+
+func JudgeKeyExist(uuid string) bool {
+	_, ok := RequestResult[uuid]
+	return ok
 }
 
 // 向消息队列发送消息
-func SendMessage(username, couponName string, requestTime int64) error {
+func SendMessage(username, couponName, uuid string, requestTime int64) error {
 	//创建Channel，如果所有的只用一个channel会怎么样？
 	ch, err := MQConnection.Channel()
 	if err != nil {
@@ -39,6 +46,7 @@ func SendMessage(username, couponName string, requestTime int64) error {
 	var request RequestMessage
 	request.username = username
 	request.coupon = couponName
+	request.uuid = uuid
 	request.requestTime = requestTime
 	b, err := json.Marshal(request)
 	if err != nil {
@@ -62,8 +70,7 @@ func SendMessage(username, couponName string, requestTime int64) error {
 }
 
 // 从消息队列接收消息
-func ReceiveMessage(username, couponName string, requestTime int64) (error, int) {
-	startTime := time.Now()
+func ReceiveMessage(username, couponName, uuid string, requestTime int64) (error, int) {
 	//创建Channel，如果所有的只用一个channel会怎么样？
 	ch, err := MQConnection.Channel()
 	if err != nil {
@@ -98,26 +105,57 @@ func ReceiveMessage(username, couponName string, requestTime int64) (error, int)
 		return err, 0
 	}
 
-	// 还需要设置超时自动退出
-	processMsg :=func(<-chan Delivery msgChan)int {
+	// 先判断uuid对应的用户请求是否之前被处理过了  // 与此同时设置超时自动退出
+	go func() (int, error) {
+		for {
+			existFlag := JudgeKeyExist(uuid)
+			if existFlag == true {
+				return RequestResult[uuid], nil
+			}
+			time := time.Now().Unix()
+			if time-requestTime > 40 {
+				RequestResult[uuid] = -2 //-2代表超时
+				return RequestResult[uuid], nil
+			}
+		}
+	}()
+
+	// 负责从消费者方的amqp.Delivery读取消息
+	processMsg := func(msgChan <-chan amqp.Delivery) (int, error) {
 		for msg := range msgChan {
+			time := time.Now().Unix()
 			var request RequestMessage
 			err = json.Unmarshal(msg.Body, &request)
 			if err != nil {
 				log.Println(err)
-				return -10
+				return 0, err
 			}
-			if request.username != username || request.coupon != couponName || request.requestTime != requestTime {
+			if request.uuid != uuid {
+				if time-request.requestTime > 40 {
+					RequestResult[uuid] = -2
+				} else {
+					RequestResult[uuid] = request.result
+				}
 				continue
 			} else {
-				return request.result
+				if time-request.requestTime > 40 {
+					RequestResult[uuid] = -2
+					return -2, nil
+				}
+				if time-request.requestTime <= 40 {
+					RequestResult[uuid] = request.result
+					return request.result, nil
+				}
 			}
 		}
-		return -10
+		return -2, nil
 	}
-	result, err := go processMsg(msgChan)
+
+	result, err := processMsg(msgChan)
 	if err != nil {
 		return err, 0
+	} else if err == nil && result == -2 {
+		return nil, -2
 	}
 	return nil, result
 }

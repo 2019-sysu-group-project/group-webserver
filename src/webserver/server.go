@@ -10,6 +10,7 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/go-sql-driver/mysql"
 	"server/mqueue"
+	uuid "github.com/satori/go.uuid"
 )
 
 // redis 默认是没有密码和使用0号db
@@ -55,7 +56,6 @@ type Coupon struct {
 
 // hashset 存储元组(用户名, Coupon)
 var hashset map[string]string
-hashset := make(map[string]string)
 
 // 任务1
 func registerUser(c *gin.Context) {
@@ -105,7 +105,7 @@ func setCouponsToRedisAndDatabase(coupon Coupon) bool {
 }
 
 // 任务3
-func patchCoupons(c *gin.Context) {	
+func patchCoupons(c *gin.Context) {
 	var err error
 	user, err := validateJWT()
 	// 5xx: 服务端错误
@@ -114,7 +114,7 @@ func patchCoupons(c *gin.Context) {
 		return
 	}
 	// TODO 401: 认证失败
-	else user.author == false {
+	if user.author == false {
 		c.JSON(401, gin.H{"errMsg": "Authorization Failed"})
 		return
 	}
@@ -129,7 +129,7 @@ func patchCoupons(c *gin.Context) {
 		return
 	}
 
-	coupon, err := getCouponsFromRedisOrDatabase(username, name)
+	coupon, err = getCouponsFromRedisOrDatabase(username, name)
 	// 5xx: 服务端错误
 	if err != nil {
 		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
@@ -153,17 +153,29 @@ func patchCoupons(c *gin.Context) {
 		c.JSON(204, gin.H{"errMsg": "Patch Failed"})
 		return
 	}
+	
 	// 将用户请求转发到消息队列中，等待消息队列对mysql进行操作并返回结果
 	t := time.Now()
-	mqueue.SendMessage(username, name, t.Unix())
-	err, res := mqueue.ReceiveMessage(username, name, t.Unix())
+	// 生成uuid
+	u := uuid.NewV4()
+	uid := u.String()
+	// 先判断是否能成功发送消息
+	err = mqueue.SendMessage(username, name, uid, t.Unix())
+	if err != nil {
+		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
+		return
+	}
+	err, res := mqueue.ReceiveMessage(username, name, uid, t.Unix())
 	if err != nil {
 		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
 		return
 	}
 
-	//返回0代表优惠券数目为0，返回2代表抢券成功，返回1代表用户已经抢到该券不可重复抢，返回-1代表数据库访问错误
+	//返回0代表优惠券数目为0，返回2代表抢券成功，返回1代表用户已经抢到该券不可重复抢，返回-1代表数据库访问错误，返回-2代表超时
 	switch res {
+		case -2:
+			c.JSON(504, gin.H{"errMsg": "Mysql Server error"})
+			return
 		case -1:
 			c.JSON(504, gin.H{"errMsg": "Mysql Server error"})
 			return
@@ -184,10 +196,7 @@ func patchCoupons(c *gin.Context) {
 
 }
 
-func main() {
-	// gin.SetMode(gin.ReleaseMode)
-	router := gin.Default()
-
+// 任务3
 func patchCoupons(c *gin.Context) {
 
 }
@@ -201,7 +210,6 @@ func setupRouter() *gin.Engine{
 	router.POST("/api/users/:username/coupons", createCoupons)
 
 	router.GET("/api/users/:username/coupons", getCouponsInformation)
-
 	return router
 }
 
