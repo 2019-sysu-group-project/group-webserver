@@ -119,15 +119,12 @@ func createCoupons(c *gin.Context) {
 // 任务2
 func getCouponsInformation(c *gin.Context) {
 	var couponJSON Coupon
-	err := c.ShouldBind(&couponJSON)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	} else {
-		coupon := getCouponsFromRedisOrDatabase(couponJSON.username, couponJSON.coupons)
-		c.JSON(http.StatusOK, gin.H{"username": coupon.username, "coupons": coupon.coupons,
-			"amount": coupon.amount, "stock": coupon.stock, "left_coupons": coupon.left,
-			"description": coupon.description})
-	}
+	couponJSON.username=c.Param("username")
+	couponJSON.coupons=c.Param("coupons")
+	coupon := getCouponsFromRedisOrDatabase(couponJSON.username, couponJSON.coupons)
+	c.JSON(http.StatusOK, gin.H{"username": coupon.username, "coupons": coupon.coupons,
+		"amount": coupon.amount, "stock": coupon.stock, "left_coupons": coupon.left,
+		"description": coupon.description})
 }
 
 // 任务2
