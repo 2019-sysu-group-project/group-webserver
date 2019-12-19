@@ -5,14 +5,12 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
-	"errors"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
 	jwt "github.com/dgrijalva/jwt-go"
 
-	"net/http"
 	"crypto/md5"
 	"io"
 )
@@ -34,7 +32,9 @@ func init() {
 		fmt.Println("Error open redis connection")
 		os.Exit(-1)
 	}
-	mysql_client, err = sql.Open("mysql", "root:123@tcp(127.0.0.1:13306)/projectdb")
+	// mysql_client, err = sql.Open("mysql", "root:123@tcp(127.0.0.1:13306)/projectdb")
+	// test
+	mysql_client, err = sql.Open("mysql", "root:123@tcp(127.0.0.1:3306)/projectdb")
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(-1)
@@ -138,9 +138,8 @@ func userLogin(c *gin.Context) {
 					"errMsg": "Generate token failed.",
 				})
 			} else {
-				passwordHash := md5Hash(password)
 				var user User
-				err := mysql_client.QueryRow("SELECT kind FROM User WHERE username=?", username).Scan(&user.Kind)
+				err := mysql_client.QueryRow("SELECT kind FROM User WHERE username=?", json.Username).Scan(&user.Kind)
 				if err != nil {
 					c.JSON(500, gin.H{
 						"kind": "",
@@ -188,11 +187,11 @@ func insertUser(username string, password string, kind int) bool {
 		// insert failed
 		return false
 	}
-	lastInsertID, err := result.lastInsertId()
+	_, err = result.LastInsertId()
 	if err != nil {
 		return false
 	}
-	rowsaffected, err := result.RowsAffected()
+	_, err = result.RowsAffected()
 	if err != nil {
 		return false
 	}
@@ -208,7 +207,7 @@ func authenticateUser(username string, password string) bool {
 		return false
 	} else {
 		if user.Username == username {
-			if username.Password == passwordHash {
+			if user.Password == passwordHash {
 				return true
 			}
 		}
@@ -242,8 +241,15 @@ func patchCoupons(c *gin.Context) {
 
 }
 
+func printHello(c *gin.Context) {
+	c.String(200, "hello")
+}
+
 func setupRouter() *gin.Engine{
 	router := gin.Default()
+
+	router.GET("/", printHello)
+
 	router.PATCH("/api/users/:username/coupons/:name", patchCoupons)
 	router.POST("/api/users", registerUser)
 
