@@ -53,7 +53,6 @@ type Coupon struct {
 }
 
 // hashset 存储元组(用户名, Coupon)
-var hashset map[string]string
 hashset := make(map[string]string)
 
 // 任务1
@@ -155,6 +154,7 @@ func patchCoupons(c *gin.Context) {
 	}
 	// 201: 成功抢到
 	if write == true {
+		hashset.
 		c.JSON(201, gin.H{"errMsg": "Patch Succeeded"})
 		return
 	}
