@@ -60,8 +60,16 @@ func registerUser(c *gin.Context) {
 }
 
 // 任务1
-func validateJWT() bool {
+func validateJWT(c *gin.Context) bool {
 	// 需要编写JWT的验证机制，作为其他人能调用的一部分
+	token := c.Request.Header.Get("Authorization")
+	_, err := jwt.Parse(token, func(*jwt.Token) (interface{}, error) {
+		return key, nil
+	})
+	if err != nil {
+		return false
+	}
+	return true
 	return true
 }
 
@@ -112,7 +120,7 @@ func patchCoupons(c *gin.Context) {
 		return
 	}
 	// TODO 401: 认证失败
-	if user.author == false {
+	if validateJWT(c) == false {
 		c.JSON(401, gin.H{"errMsg": "Authorization Failed"})
 		return
 	}
@@ -120,7 +128,7 @@ func patchCoupons(c *gin.Context) {
 	username := c.Param("username")
 	name := c.Param("name")
 	// 204: 已经有了优惠券
-	_, exists := hashset[user] //hashset[user.username]
+	_, exists := hashset[user.username] //hashset[user.username]
 	if exists {
 		c.JSON(204, gin.H{"errMsg": "Already had the same coupon"})
 		return
