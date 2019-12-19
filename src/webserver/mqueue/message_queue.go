@@ -10,11 +10,11 @@ import (
 )
 
 type RequestMessage struct {
-	username    string
-	coupon      string
-	uuid        string // 表示用户发起请求的唯一id
-	requestTime int64  // 用户发起请求的时间
-	result      int
+	Username    string
+	Coupon      string
+	Uuid        string // 表示用户发起请求的唯一id
+	RequestTime int64  // 用户发起请求的时间
+	Result      int
 }
 
 func JudgeKeyExist(uuid string) bool {
@@ -44,10 +44,10 @@ func SendMessage(username, couponName, uuid string, requestTime int64) error {
 		return err
 	}
 	var request RequestMessage
-	request.username = username
-	request.coupon = couponName
-	request.uuid = uuid
-	request.requestTime = requestTime
+	request.Username = username
+	request.Coupon = couponName
+	request.Uuid = uuid
+	request.RequestTime = requestTime
 	b, err := json.Marshal(request)
 	if err != nil {
 		fmt.Println("error:", err)
@@ -130,21 +130,21 @@ func ReceiveMessage(username, couponName, uuid string, requestTime int64) (error
 				log.Println(err)
 				return 0, err
 			}
-			if request.uuid != uuid {
-				if time-request.requestTime > 40 {
+			if request.Uuid != uuid {
+				if time-request.RequestTime > 40 {
 					RequestResult[uuid] = -2
 				} else {
-					RequestResult[uuid] = request.result
+					RequestResult[uuid] = request.Result
 				}
 				continue
 			} else {
-				if time-request.requestTime > 40 {
+				if time-request.RequestTime > 40 {
 					RequestResult[uuid] = -2
 					return -2, nil
 				}
-				if time-request.requestTime <= 40 {
-					RequestResult[uuid] = request.result
-					return request.result, nil
+				if time-request.RequestTime <= 40 {
+					RequestResult[uuid] = request.Result
+					return request.Result, nil
 				}
 			}
 		}
