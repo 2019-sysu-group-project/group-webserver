@@ -170,7 +170,7 @@ func getCouponsFromRedis(Username string, cou string) (Coupon, error) {
 
 // 任务2
 func setCouponsToRedis(Username string, cou Coupon) {
-	redis_client.Set(Username+"#"+cou.coupons, cou.ToString(), 0)
+	redis_client.Set(Username+"#"+cou.coupons, cou.ToString(), 100000)
 }
 
 // 任务2
@@ -184,7 +184,6 @@ func getCouponsFromRedisOrDatabase(Username string, cou string) (Coupon,error) {
 			query.Next()
 			query.Scan(&result.username, &result.coupons, &result.amount,
 				&result.stock, &result.left, &result.description)
-			fmt.Println("Error")
 			setCouponsToRedis(Username, result)
 		}
 	}
