@@ -13,6 +13,7 @@ import (
 
 	"crypto/md5"
 	"io"
+	"strconv"
 )
 
 // redis 默认是没有密码和使用0号db
@@ -61,7 +62,13 @@ type Coupon struct {
 type User struct {
 	Username	string
 	Password	string
-	Kind		int
+	Kind		string
+}
+
+type User_DB struct {
+	Username    string
+	Password    string
+	Kind 	    int
 }
 
 var(
@@ -76,25 +83,39 @@ func registerUser(c *gin.Context) {
 	if c.BindJSON(&json) == nil {
 		username := json.Username
 		password := json.Password
-		kind := json.Kind
+		kind := json.kind   	// string type
 		if isUserExist(username) {		// user already exists
 			c.JSON(400, gin.H{
 				"errMsg": "Username already exists!",
 			})
+			return
 		} else {
+			int_kind, err := strconv.Atoi(kind)
+			if err != nil {
+				c.JSON(400, gin.H{
+					"errMsg": "Post error."
+				})
+				return
+			}
 			passwordHash := md5Hash(password)
-
 			// insert user to DB
-			if insertUser(username, passwordHash, kind) {
+			if insertUser(username, passwordHash, int_kind) {
 				c.JSON(201, gin.H{
 					"errMsg": "",
 				})
+				return
 			} else {
 				c.JSON(400, gin.H{
 					"errMsg": "Create user failed!",
 				})
+				return
 			}
 		}
+	} else {		// failed in BindJSON
+		c.JSON(400, gin.H{
+			"errMsg": "Failed in BindJSON!",
+		})
+		return
 	}
 }
 
@@ -137,20 +158,24 @@ func userLogin(c *gin.Context) {
 					"kind": "",
 					"errMsg": "Generate token failed.",
 				})
+				return
 			} else {
-				var user User
+				var user User_DB
 				err := mysql_client.QueryRow("SELECT kind FROM User WHERE username=?", json.Username).Scan(&user.Kind)
 				if err != nil {
 					c.JSON(500, gin.H{
 						"kind": "",
 						"errMsg": "Query DB failed.",
 					})
+					return
 				} else {
+					string_kind := strconv.Itoa(user.Kind)
 					c.JSON(200, gin.H{
 						"Authorization": token,
-						"kind": user.Kind,
+						"kind": string_kind,
 						"errMsg": "",
 					})
+					return
 				}
 			}
 		} else {
@@ -158,13 +183,19 @@ func userLogin(c *gin.Context) {
 				"kind": "",
 				"errMsg": "Login failed.",
 			})
+			return
 		}
+	} else {			// failed in BindJSON
+		c.JSON(400, gin.H{
+			"errMsg": "Failed in BindJSON!",
+		})
+		return
 	}
 }
 
 // check if the user already exists in DB
 func isUserExist(query_username string) bool {
-	var user User
+	var user User_DB
 	err := mysql_client.QueryRow("SELECT username, password, kind FROM User WHERE username=?", query_username).Scan(&user.Username, &user.Password, &user.Kind)
 	if err == sql.ErrNoRows {		// user not exists
 		return false
