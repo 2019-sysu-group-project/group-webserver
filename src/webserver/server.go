@@ -2,17 +2,18 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
-	"time"
 	"os"
+	"time"
+
+	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
-	jwt "github.com/dgrijalva/jwt-go"
 
 	"crypto/md5"
 	"io"
-	"strconv"
 )
 
 // redis 默认是没有密码和使用0号db
@@ -34,7 +35,7 @@ func init() {
 	}
 	// mysql_client, err = sql.Open("mysql", "root:123@tcp(127.0.0.1:13306)/projectdb")
 	// test
-	mysql_client, err = sql.Open("mysql", "root:123@tcp(127.0.0.1:3306)/projectdb")
+	mysql_client, err = sql.Open("mysql", "root:123@tcp(127.0.0.1:13306)/projectdb")
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(-1)
@@ -59,18 +60,18 @@ type Coupon struct {
 }
 
 type User struct {
-	Username	string
-	Password	string
-	Kind		string
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Kind     string `json:"kind"`
 }
 
 type User_DB struct {
-	Username    string
-	Password    string
-	Kind 	    int
+	Username string
+	Password string
+	Kind     int
 }
 
-var(
+var (
 	key []byte = []byte("JWT key of GXNXFD")
 )
 
@@ -82,40 +83,48 @@ func registerUser(c *gin.Context) {
 	if c.BindJSON(&json) == nil {
 		username := json.Username
 		password := json.Password
-		kind := json.kind   	// string type
-		if isUserExist(username) {		// user already exists
+		kind := json.Kind // string type
+		if username == "" || password == "" {
 			c.JSON(400, gin.H{
-				"errMsg": "Username already exists!",
+				"errMsg": "空用户名或密码",
 			})
 			return
-		} else {
-			int_kind, err := strconv.Atoi(kind)
-			if err != nil {
-				c.JSON(400, gin.H{
-					"errMsg": "Post error."
-				})
-				return
-			}
-			passwordHash := md5Hash(password)
-			// insert user to DB
-			if insertUser(username, passwordHash, int_kind) {
-				c.JSON(201, gin.H{
-					"errMsg": "",
-				})
-				return
-			} else {
-				c.JSON(400, gin.H{
-					"errMsg": "Create user failed!",
-				})
-				return
-			}
 		}
-	} else {		// failed in BindJSON
+		var kindInt int
+		if kind == "customer" || kind == "" {
+			kindInt = 0
+		} else if kind == "saler" {
+			kindInt = 1
+		} else { // wrong type of kind
+			c.JSON(400, gin.H{
+				"errMsg": "错误kind类型",
+			})
+			return
+		}
+		if isUserExist(username) { // user already exists
+			c.JSON(400, gin.H{
+				"errMsg": "用户已存在",
+			})
+			return
+		}
+		passwordHash := md5Hash(password)
+		// insert user to DB
+		if insertUser(username, passwordHash, kindInt) {
+			c.JSON(201, gin.H{
+				"errMsg": "",
+			})
+			return
+		}
 		c.JSON(400, gin.H{
-			"errMsg": "Failed in BindJSON!",
+			"errMsg": "创建账户失败",
 		})
 		return
 	}
+	// failed in BindJSON
+	c.JSON(400, gin.H{
+		"errMsg": "获取json数据失败",
+	})
+	return
 }
 
 // generate JWT token
@@ -150,11 +159,25 @@ func validateJWT(c *gin.Context) bool {
 func userLogin(c *gin.Context) {
 	var json User
 	if c.BindJSON(&json) == nil {
+		if json.Username == "" || json.Password == "" {
+			c.JSON(401, gin.H{
+				"kind":   "",
+				"errMsg": "空用户或空密码",
+			})
+			return
+		}
+		if isUserExist(json.Username) == false {
+			c.JSON(401, gin.H{
+				"kind":   "",
+				"errMsg": "用户不存在",
+			})
+			return
+		}
 		if authenticateUser(json.Username, json.Password) {
 			token := genToken()
 			if token == "" {
 				c.JSON(401, gin.H{
-					"kind": "",
+					"kind":   "",
 					"errMsg": "Generate token failed.",
 				})
 				return
@@ -163,15 +186,26 @@ func userLogin(c *gin.Context) {
 				err := mysql_client.QueryRow("SELECT kind FROM User WHERE username=?", json.Username).Scan(&user.Kind)
 				if err != nil {
 					c.JSON(500, gin.H{
-						"kind": "",
+						"kind":   "",
 						"errMsg": "Query DB failed.",
 					})
 					return
 				} else {
-					string_kind := strconv.Itoa(user.Kind)
+					var kindString string
+					if user.Kind == 0 {
+						kindString = "customer"
+					} else if user.Kind == 1 {
+						kindString = "saler"
+					} else {
+						c.JSON(500, gin.H{
+							"kind":   "",
+							"errMsg": "Wrong kind in DB.",
+						})
+					}
+					c.Header("Authorization", token)
 					c.JSON(200, gin.H{
-						"Authorization": token,
-						"kind": string_kind,
+						// "Authorization": token,
+						"kind":   kindString,
 						"errMsg": "",
 					})
 					return
@@ -179,24 +213,25 @@ func userLogin(c *gin.Context) {
 			}
 		} else {
 			c.JSON(401, gin.H{
-				"kind": "",
-				"errMsg": "Login failed.",
+				"kind":   "",
+				"errMsg": "错误密码",
 			})
 			return
 		}
-	} else {			// failed in BindJSON
+	} else { // failed in BindJSON
 		c.JSON(400, gin.H{
-			"errMsg": "Failed in BindJSON!",
+			"errMsg": "获取json数据失败",
 		})
 		return
 	}
 }
 
 // check if the user already exists in DB
-func isUserExist(query_username string) bool {
+func isUserExist(usernameQuery string) bool {
 	var user User_DB
-	err := mysql_client.QueryRow("SELECT username, password, kind FROM User WHERE username=?", query_username).Scan(&user.Username, &user.Password, &user.Kind)
-	if err == sql.ErrNoRows {		// user not exists
+	err := mysql_client.QueryRow("SELECT username, password, kind FROM User WHERE username=?", usernameQuery).Scan(&user.Username, &user.Password, &user.Kind)
+	if err != nil {
+		fmt.Println(err)
 		return false
 	} else {
 		return true
@@ -236,10 +271,8 @@ func authenticateUser(username string, password string) bool {
 	if err == sql.ErrNoRows {
 		return false
 	} else {
-		if user.Username == username {
-			if user.Password == passwordHash {
-				return true
-			}
+		if user.Username == username && user.Password == passwordHash {
+			return true
 		}
 	}
 	return false
@@ -281,18 +314,45 @@ func patchCoupons(c *gin.Context) {
 
 }
 
-func setupRouter() *gin.Engine{
+func setupRouter() *gin.Engine {
 	router := gin.Default()
-	router.PATCH("/api/users/:username/coupons/:name", patchCoupons)
+	// task1
 	router.POST("/api/users", registerUser)
-
 	router.POST("/api/auth", userLogin)
+	// task2
 	router.POST("/api/users/:username/coupons", createCoupons)
-
 	router.GET("/api/users/:username/coupons", getCouponsInformation)
+	// task3
+	router.PATCH("/api/users/:username/coupons/:name", patchCoupons)
+
+	// used for testing
+	router.GET("/validate", testValidateJWT)
+	router.GET("/test", testMyFunc)
 	return router
 }
 
+func testMyFunc(c *gin.Context) {
+	s := `{"errMsg": "", "data": [{"name": "test_coupons_xxx", "amount": 100, "left": 30, "stock": 500, "description": "no description"}]}`
+	var result map[string]interface{}
+	err := json.Unmarshal([]byte(s), &result)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	c.JSON(200, result)
+}
+
+func testValidateJWT(c *gin.Context) {
+	valid := validateJWT(c)
+	if valid {
+		c.JSON(200, gin.H{
+			"errMsg": "valid",
+		})
+	} else {
+		c.JSON(200, gin.H{
+			"errMsg": "invalid",
+		})
+	}
+}
 
 func main() {
 	// gin.SetMode(gin.ReleaseMode)
