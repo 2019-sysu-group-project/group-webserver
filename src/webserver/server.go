@@ -1,11 +1,10 @@
 package main
 
 import (
-	"os"
 	"database/sql"
 	"fmt"
 	"time"
-
+	"os"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
@@ -257,11 +256,21 @@ func getCouponsInformation(c *gin.Context) {
 }
 
 // 任务2
+func getCouponsFromRedis(username string, coupons string) Coupon {
+	return Coupon{}
+}
+
+// 任务2
+func setCouponsToRedis(usernam string, coupons Coupon) {
+
+}
+
+// 任务2
 func getCouponsFromRedisOrDatabase(username string, coupons string) Coupon {
 	return Coupon{}
 }
 
-// 任务3
+// 任务3 - 使用getCouponsFromRedis和setCouponsToRedis来完成该任务
 func setCouponsToRedisAndDatabase(coupon Coupon) bool {
 	// true set成功，false set失败
 	return true
@@ -272,15 +281,8 @@ func patchCoupons(c *gin.Context) {
 
 }
 
-func printHello(c *gin.Context) {
-	c.String(200, "hello")
-}
-
 func setupRouter() *gin.Engine{
 	router := gin.Default()
-
-	router.GET("/", printHello)
-
 	router.PATCH("/api/users/:username/coupons/:name", patchCoupons)
 	router.POST("/api/users", registerUser)
 
