@@ -101,6 +101,20 @@ func getCouponsInformation(c *gin.Context) {
 
 }
 
+// 任务2
+func getCouponsFromRedis(Username string, cou string) (Coupon, error) {
+	return Coupon{}, nil
+}
+
+// 任务2
+func setCouponsToRedis(Username string, cou Coupon) {
+}
+
+// 任务2
+func getCouponsFromRedisOrDatabase(Username string, cou string) (Coupon, error) {
+	return Coupon{}, nil
+}
+
 // 任务3
 func patchCoupons(c *gin.Context) {
 
