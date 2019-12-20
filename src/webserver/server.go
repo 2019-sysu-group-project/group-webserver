@@ -5,10 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
+	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
+
+	"crypto/md5"
+	"io"
 )
 
 // redis 默认是没有密码和使用0号db
@@ -53,9 +58,9 @@ type Coupon struct {
 }
 
 type User struct {
-	Username string
-	Password string
-	Kind     string
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Kind     string `json:"kind"`
 }
 
 type User_DB struct {
@@ -64,31 +69,203 @@ type User_DB struct {
 	Kind     int
 }
 
+var (
+	key []byte = []byte("JWT key of GXNXFD")
+)
+
 // 任务1
 func registerUser(c *gin.Context) {
+	var json User
 
+	if c.BindJSON(&json) == nil {
+		username := json.Username
+		password := json.Password
+		kind := json.Kind // string type
+		if username == "" || password == "" {
+			c.JSON(400, gin.H{
+				"errMsg": "空用户名或密码",
+			})
+			return
+		}
+		var kindInt int
+		if kind == "customer" || kind == "" {
+			kindInt = 0
+		} else if kind == "saler" {
+			kindInt = 1
+		} else { // wrong type of kind
+			c.JSON(400, gin.H{
+				"errMsg": "错误kind类型",
+			})
+			return
+		}
+		if isUserExist(username) { // user already exists
+			c.JSON(400, gin.H{
+				"errMsg": "用户已存在",
+			})
+			return
+		}
+		passwordHash := md5Hash(password)
+		// insert user to DB
+		if insertUser(username, passwordHash, kindInt) {
+			c.JSON(201, gin.H{
+				"errMsg": "",
+			})
+			return
+		}
+		c.JSON(400, gin.H{
+			"errMsg": "创建账户失败",
+		})
+		return
+	}
+	// failed in BindJSON
+	c.JSON(400, gin.H{
+		"errMsg": "获取json数据失败",
+	})
+}
+
+// generate JWT token
+func genToken() string {
+	claims := &jwt.StandardClaims{
+		NotBefore: int64(time.Now().Unix()),
+		ExpiresAt: int64(time.Now().Unix() + 3600),
+		Issuer:    "GXNXFD",
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	ss, err := token.SignedString(key)
+	if err != nil {
+		return ""
+	}
+	return ss
 }
 
 // 任务1
 func validateJWT(c *gin.Context) bool {
 	// 需要编写JWT的验证机制，作为其他人能调用的一部分
-	return true
+	token := c.Request.Header.Get("Authorization")
+	_, err := jwt.Parse(token, func(*jwt.Token) (interface{}, error) {
+		return key, nil
+	})
+	return err == nil
 }
 
 // 任务1
 func userLogin(c *gin.Context) {
-
+	var json User
+	if c.BindJSON(&json) == nil {
+		if json.Username == "" || json.Password == "" {
+			c.JSON(401, gin.H{
+				"kind":   "",
+				"errMsg": "空用户或空密码",
+			})
+			return
+		}
+		if !isUserExist(json.Username) {
+			c.JSON(401, gin.H{
+				"kind":   "",
+				"errMsg": "用户不存在",
+			})
+			return
+		}
+		if authenticateUser(json.Username, json.Password) {
+			token := genToken()
+			if token == "" {
+				c.JSON(401, gin.H{
+					"kind":   "",
+					"errMsg": "Generate token failed.",
+				})
+				return
+			} else {
+				var user User_DB
+				err := mysql_client.QueryRow("SELECT kind FROM User WHERE username=?", json.Username).Scan(&user.Kind)
+				if err != nil {
+					c.JSON(500, gin.H{
+						"kind":   "",
+						"errMsg": "Query DB failed.",
+					})
+					return
+				} else {
+					var kindString string
+					if user.Kind == 0 {
+						kindString = "customer"
+					} else if user.Kind == 1 {
+						kindString = "saler"
+					} else {
+						c.JSON(500, gin.H{
+							"kind":   "",
+							"errMsg": "Wrong kind in DB.",
+						})
+					}
+					c.Header("Authorization", token)
+					c.JSON(200, gin.H{
+						// "Authorization": token,
+						"kind":   kindString,
+						"errMsg": "",
+					})
+					return
+				}
+			}
+		} else {
+			c.JSON(401, gin.H{
+				"kind":   "",
+				"errMsg": "错误密码",
+			})
+			return
+		}
+	} else { // failed in BindJSON
+		c.JSON(400, gin.H{
+			"errMsg": "获取json数据失败",
+		})
+		return
+	}
 }
 
 // check if the user already exists in DB
-func isUserExist(query_username string) bool {
+func isUserExist(usernameQuery string) bool {
 	var user User_DB
-	err := mysql_client.QueryRow("SELECT username, password, kind FROM User WHERE username=?", query_username).Scan(&user.Username, &user.Password, &user.Kind)
-	if err == sql.ErrNoRows { // user not exists
+	err := mysql_client.QueryRow("SELECT username, password, kind FROM User WHERE username=?", usernameQuery).Scan(&user.Username, &user.Password, &user.Kind)
+	if err != nil {
+		fmt.Println(err)
 		return false
 	} else {
 		return true
 	}
+}
+
+// md5
+func md5Hash(data string) string {
+	hash := md5.New()
+	io.WriteString(hash, data)
+	return fmt.Sprintf("%x", hash.Sum(nil))
+}
+
+// insert user into DB
+func insertUser(username string, password string, kind int) bool {
+	result, err := mysql_client.Exec("INSERT INTO User(username, password, kind) VALUES(?,?,?)", username, password, kind)
+	if err != nil {
+		// insert failed
+		return false
+	}
+	_, err = result.LastInsertId()
+	if err != nil {
+		return false
+	}
+	_, err = result.RowsAffected()
+	return err == nil
+}
+
+// authenticate user from DB
+func authenticateUser(username string, password string) bool {
+	passwordHash := md5Hash(password)
+	var user User
+	err := mysql_client.QueryRow("SELECT username, password FROM User WHERE username=?", username).Scan(&user.Username, &user.Password)
+	if err == sql.ErrNoRows {
+		return false
+	} else {
+		if user.Username == username && user.Password == passwordHash {
+			return true
+		}
+	}
+	return false
 }
 
 // 任务2
