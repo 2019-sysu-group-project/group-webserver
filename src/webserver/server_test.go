@@ -254,5 +254,5 @@ func TestGetCouponsInformation(t *testing.T) {
 
 // 任务3
 func TestPatchCoupons(t *testing.T) {
-	
+
 }
