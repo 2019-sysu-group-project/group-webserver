@@ -9,6 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"os"
+	"time"
+
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis"
@@ -16,6 +19,10 @@ import (
 
 	"crypto/md5"
 	"io"
+	"strconv"
+	"webserver/mqueue"
+
+	uuid "github.com/satori/go.uuid"
 )
 
 // redis 默认是没有密码和使用0号db
@@ -48,8 +55,9 @@ func init() {
 }
 
 // mysql 默认用户：root，密码：root，数据库：projectdb
-// var mysql_client =
+// var mysql_client =sql.Open("mysql", "root:123@tcp(127.0.0.1:13306)/projectdb")
 
+// Coupon has username as shopper's name, coupons as its name
 type Coupon struct {
 	Username    string  `json:"username"`
 	Coupons     string  `json:"name"`
@@ -59,12 +67,20 @@ type Coupon struct {
 	Description string  `json:"description"`
 }
 
+// User records user's name, password and kind to idetify if it's a seller or a buyer
 type User struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 	Kind     string `json:"kind"`
 }
 
+// MyClaims: Customer Claims
+type MyClaims struct {
+	Uname string `json:"username"`
+	jwt.StandardClaims
+}
+
+// User_DB not known yet
 type User_DB struct {
 	Username string
 	Password string
@@ -74,6 +90,9 @@ type User_DB struct {
 var (
 	key []byte = []byte("JWT key of GXNXFD")
 )
+
+// hashset 存储元组(用户名, 商家名_优惠券名)
+var hashset map[string]string
 
 // 任务1
 func registerUser(c *gin.Context) {
@@ -126,11 +145,14 @@ func registerUser(c *gin.Context) {
 }
 
 // generate JWT token
-func genToken() string {
-	claims := &jwt.StandardClaims{
-		NotBefore: int64(time.Now().Unix()),
-		ExpiresAt: int64(time.Now().Unix() + 3600),
-		Issuer:    "GXNXFD",
+func genToken(username string) string {
+	claims := &MyClaims{
+		username,
+		jwt.StandardClaims{
+			NotBefore: int64(time.Now().Unix()),
+			ExpiresAt: int64(time.Now().Unix() + 3600),
+			Issuer:    "GXNXFD",
+		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	ss, err := token.SignedString(key)
@@ -169,7 +191,7 @@ func userLogin(c *gin.Context) {
 			return
 		}
 		if authenticateUser(json.Username, json.Password) {
-			token := genToken()
+			token := genToken(json.Username)
 			if token == "" {
 				c.JSON(401, gin.H{
 					"kind":   "",
@@ -323,6 +345,9 @@ func checkUser(username string) int {
 
 // 任务2
 func createCoupons(c *gin.Context) {
+	if !validateJWT(c) {
+		c.JSON(401, gin.H{"errMsg": "认证失败"})
+	}
 	var couponJSON Coupon
 	err := c.BindJSON(&couponJSON)
 	couponJSON.Username = c.Param("username")
@@ -409,7 +434,99 @@ func getCouponsFromRedisOrDatabase(Username string, cou string) (Coupon, error) 
 
 // 任务3
 func patchCoupons(c *gin.Context) {
+	var err error
+	tokenString := c.Request.Header.Get("Authorization")
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return key, nil
+	})
+	// 5xx: 服务端错误
+	if err != nil {
+		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
+		return
+	}
+	//认证失败
+	if err != nil || validateJWT(c) == false {
+		c.JSON(401, gin.H{"errMsg": "Authorization Failed"})
+		return
+	}
 
+	// userName: 用户名
+	// sellerName: 商家名
+	// couponName: 优惠券名
+	userName := token.Claims.(MyClaims).Uname
+	sellerName := c.Param("username")
+	couponName := c.Param("name")
+	// 204: 已经有了优惠券
+	_, exists := hashset[userName]
+	if exists {
+		c.JSON(204, gin.H{"errMsg": "Already had the same coupon"})
+		return
+	}
+
+	coupon, err := getCouponsFromRedisOrDatabase(sellerName, couponName)
+	// 5xx: 服务端错误
+	if err != nil {
+		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
+		return
+	}
+	// 204: 优惠券无库存
+	if coupon.Left == 0 {
+		c.JSON(204, gin.H{"errMsg": "The coupon is out of stock"})
+		return
+	}
+
+	coupon.Left--
+	write := setCouponsToRedisAndDatabase(coupon, time.Now().UnixNano())
+	// 5xx: 服务端错误
+	if err != nil {
+		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
+		return
+	}
+	// 204: 未抢到
+	if write == false {
+		c.JSON(204, gin.H{"errMsg": "Patch Failed"})
+		return
+	}
+
+	// 将用户请求转发到消息队列中，等待消息队列对mysql进行操作并返回结果
+	t := time.Now()
+	// 生成uuid
+	u := uuid.NewV4()
+	uid := u.String()
+	// 先判断是否能成功发送消息
+	err = mqueue.SendMessage(sellerName, couponName, uid, t.Unix())
+	if err != nil {
+		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
+		return
+	}
+	err, res := mqueue.ReceiveMessage(sellerName, couponName, uid, t.Unix())
+	if err != nil {
+		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
+		return
+	}
+
+	//返回0代表优惠券数目为0，返回2代表抢券成功，返回1代表用户已经抢到该券不可重复抢，返回-1代表数据库访问错误，返回-2代表超时
+	switch res {
+	case -2:
+		c.JSON(504, gin.H{"errMsg": "Time out"})
+		return
+	case -1:
+		c.JSON(504, gin.H{"errMsg": "Mysql Server error"})
+		return
+	case 0:
+		c.JSON(204, gin.H{"errMsg": "The coupon is out of stock"})
+		return
+	case 1:
+		c.JSON(204, gin.H{"errMsg": "Already had the same coupon"})
+		return
+	case 2:
+		// 201: 成功抢到
+		c.JSON(201, gin.H{"errMsg": "Patch Succeeded"})
+		return
+	default:
+		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
+		return
+	}
 }
 
 func setupRouter() *gin.Engine {
