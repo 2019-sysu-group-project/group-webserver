@@ -310,7 +310,8 @@ func patchCoupons(c *gin.Context) {
 	// userName: 用户名
 	// sellerName: 商家名
 	// couponName: 优惠券名
-	userName := token.Claims.(MyClaims).Uname
+	// 从token.Claims获取用户名
+	userName := token.Claims.(*MyClaims).Uname
 	sellerName := c.Param("username")
 	couponName := c.Param("name")
 	// 204: 已经有了优惠券
