@@ -34,9 +34,9 @@ docker-compose up
 ***PS：本次对数据库的写操作，只有<u>用户获取优惠券</u>这个接口需要调用消息队列，其余写操作，包括商家用户注册，商家发放优惠券这些接口，直接对数据库进行写即可***
 
 这里主要实现接口文档中的接口，按照任务进行划分如下
-- [ ] 任务1：用户注册（包括商家和普通用户），用户和商家登录，这两个接口的实现。——仅依赖于[数据库](https://github.com/2019-sysu-group-project/project-database)。
-- [ ] 任务2：商家新建优惠券，获取优惠券信息，这两个接口的实现。——仅依赖于[数据库](https://github.com/2019-sysu-group-project/project-database)。
-- [ ] 任务3：用户获取优惠券。——依赖于[数据库](https://github.com/2019-sysu-group-project/project-database)+[消息队列](https://github.com/2019-sysu-group-project/message-queue)
+- [x] 任务1：用户注册（包括商家和普通用户），用户和商家登录，这两个接口的实现。——仅依赖于[数据库](https://github.com/2019-sysu-group-project/project-database)。
+- [x] 任务2：商家新建优惠券，获取优惠券信息，这两个接口的实现。——仅依赖于[数据库](https://github.com/2019-sysu-group-project/project-database)。
+- [x] 任务3：用户获取优惠券。——依赖于[数据库](https://github.com/2019-sysu-group-project/project-database)+[消息队列](https://github.com/2019-sysu-group-project/message-queue)
 
 点击数据库和消息队列的链接，查看数据库和消息队列的部署方式(没有部署方式代表还未开发完毕)。
 
@@ -66,3 +66,6 @@ Golang第三方包下载会非常慢，因此，使用七牛云来加速go get�
 1. 使用任务2中的getCouponsFromRedisOrDatabase函数获得优惠券信息
 2. 然后开始抢票，增减字段细节见接口文档
 3. webserver逻辑减少商家优惠券数量后，将这个变更首先写入Redis，然后写入数据库，但是注意，写入数据库的操作需要通过消息队列来完成，具体做法是，首先将连接socket存在一个哈希表中，然后将写入数据库的请求发送到消息队列的入队列中，然后有一个协程不断地轮询消息队列的出队列，如果检查到该写入操作成功发生，则通过哈希表，找到连接socket字段，将查询到的成功或者失败的信息（见消息队列描述）写入socket连接，从而返回给客户端。
+
+参考：
+1. [并发进程](https://www.runoob.com/go/go-concurrent.html)
