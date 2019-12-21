@@ -246,7 +246,7 @@ func TestGetCouponsInformation(t *testing.T) {
 	w = httptest.NewRecorder()
 	req, _ = http.NewRequest("GET", "/api/users/non-exist/coupons?page=1", nil)
 	router.ServeHTTP(w, req)
-	assert.Equal(t, 200, w.Code)
+	assert.Equal(t, 401, w.Code)
 	result = TestCouponsResponse{}
 	assert.Nil(t, json.NewDecoder(w.Body).Decode(&result))
 	assert.Equal(t, 0, len(result.Data))

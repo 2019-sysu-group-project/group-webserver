@@ -20,7 +20,7 @@ var mysql_client *sql.DB
 
 func init() {
 	redis_client = redis.NewClient(&redis.Options{
-		Addr:     "127.0.0.1:6379",
+		Addr:     "127.0.0.1:16379",
 		Password: "", // no password set
 		DB:       0,  // use default DB
 	})
@@ -31,7 +31,7 @@ func init() {
 		fmt.Println("Error open redis connection")
 		os.Exit(-1)
 	}
-	mysql_client, err = sql.Open("mysql", "root:Lichen1996@tcp(127.0.0.1:3306)/projectdb")
+	mysql_client, err = sql.Open("mysql", "root:123@tcp(127.0.0.1:13306)/projectdb")
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(-1)
@@ -98,32 +98,6 @@ func isUserExist(query_username string) bool {
 //---------------------------------------------------------------
 //任务2----------------------------------------------------------
 
-/*
-type CouponV2 struct {
-	Username string `json:"username"`
-
-	Coupons string `json:"name"`
-
-	Amount int32 `json:"amount"`
-
-	Stock float32 `json:"stock"`
-
-	Left int32 `json:"left"`
-
-	Description string `json:"description"`
-}
-
-func (c *CouponV2) ToCoupon() Coupon {
-	var cou Coupon
-	cou.username = c.Username
-	cou.coupons = c.Coupons
-	cou.amount = c.Amount
-	cou.stock = c.Stock
-	cou.left = c.Left
-	cou.description = c.Description
-	return cou
-}
-*/
 
 //将Coupon拼接成字符串，以#分隔：...#...#...
 func (c *Coupon) ToString() string {
@@ -207,21 +181,23 @@ func getCouponsInformation(c *gin.Context) {
 	var resu GetCous
 	var cou Coupon
 	deviation, _ := strconv.Atoi(page)
-	query, _ := mysql_client.Query("SELECT username, coupons, amount, stock, left_coupons, description FROM Coupon WHERE username=? limit ?,20",
-		Username, (deviation-1)*20)
-	//	defer query.Close()
-	for query.Next() {
-		query.Scan(&cou.Username, &cou.Coupons, &cou.Amount,
-			&cou.Stock, &cou.Left, &cou.Description)
-		resu.Data = append(resu.Data, cou)
+	flag := checkUser(Username)
+	if flag != 2 {
+		query, _ := mysql_client.Query("SELECT username, coupons, amount, stock, left_coupons, description FROM Coupon WHERE username=? limit ?,20",
+			Username, (deviation-1)*20)
+		//	defer query.Close()
+		for query.Next() {
+			query.Scan(&cou.Username, &cou.Coupons, &cou.Amount,
+				&cou.Stock, &cou.Left, &cou.Description)
+			resu.Data = append(resu.Data, cou)
+		}
+		resultJSON, _ := json.Marshal(resu)
+		var result map[string]interface{}
+		json.Unmarshal(resultJSON, &result)
+		c.JSON(200, result)
+	} else {
+		c.JSON(401, gin.H{"errMsg": "用户不存在"})
 	}
-	resultJSON, _ := json.Marshal(resu)
-	var result map[string]interface{}
-	err := json.Unmarshal(resultJSON, &result)
-	if err != nil {
-		fmt.Println(err.Error())
-	}
-	c.JSON(200, result)
 }
 
 // 任务2
@@ -301,7 +277,6 @@ func testValidateJWT(c *gin.Context) {
 	}
 }
 
-/*
 func main() {
 	// gin.SetMode(gin.ReleaseMode)
 	router := setupRouter()
@@ -310,4 +285,3 @@ func main() {
 		fmt.Println("Error starting server")
 	}
 }
-*/
