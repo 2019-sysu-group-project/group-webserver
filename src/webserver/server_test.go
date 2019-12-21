@@ -22,9 +22,9 @@ type TestCouponsResponse struct {
 
 type TestCouponsData struct {
 	Name        string `json:"name"`
-	Amount      int32  `json:"amount"`
-	Left        int32  `json:"left"`
-	Stock       int32  `json:"stock"`
+	Amount      int    `json:"amount"`
+	Left        int    `json:"left"`
+	Stock       int    `json:"stock"`
 	Description string `json:"description"`
 }
 
@@ -246,7 +246,7 @@ func TestGetCouponsInformation(t *testing.T) {
 	w = httptest.NewRecorder()
 	req, _ = http.NewRequest("GET", "/api/users/non-exist/coupons?page=1", nil)
 	router.ServeHTTP(w, req)
-	assert.Equal(t, 200, w.Code)
+	assert.Equal(t, 401, w.Code)
 	result = TestCouponsResponse{}
 	assert.Nil(t, json.NewDecoder(w.Body).Decode(&result))
 	assert.Equal(t, 0, len(result.Data))
@@ -254,5 +254,5 @@ func TestGetCouponsInformation(t *testing.T) {
 
 // 任务3
 func TestPatchCoupons(t *testing.T) {
-	
+
 }
