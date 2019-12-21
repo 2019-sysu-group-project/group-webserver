@@ -9,9 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"os"
-	"time"
-
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis"
@@ -19,7 +16,6 @@ import (
 
 	"crypto/md5"
 	"io"
-	"strconv"
 	"webserver/mqueue"
 
 	uuid "github.com/satori/go.uuid"
@@ -42,7 +38,9 @@ func init() {
 		fmt.Println("Error open redis connection")
 		os.Exit(-1)
 	}
-	mysql_client, err = sql.Open("mysql", "root:123@tcp(127.0.0.1:13306)/projectdb")
+	// mysql_client, err = sql.Open("mysql", "root:123@tcp(127.0.0.1:13306)/projectdb")
+	// test
+	mysql_client, err = sql.Open("mysql", "root:123@tcp(127.0.0.1:3306)/projectdb")
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(-1)
@@ -453,7 +451,8 @@ func patchCoupons(c *gin.Context) {
 	// userName: 用户名
 	// sellerName: 商家名
 	// couponName: 优惠券名
-	userName := token.Claims.(MyClaims).Uname
+	// 从token.Claims获取用户名
+	userName := token.Claims.(*MyClaims).Uname
 	sellerName := c.Param("username")
 	couponName := c.Param("name")
 	// 204: 已经有了优惠券
@@ -476,22 +475,17 @@ func patchCoupons(c *gin.Context) {
 	}
 
 	coupon.Left--
-	write := setCouponsToRedisAndDatabase(coupon, time.Now().UnixNano())
+	setCouponsToRedis(userName, coupon)
 	// 5xx: 服务端错误
 	if err != nil {
 		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
-		return
-	}
-	// 204: 未抢到
-	if write == false {
-		c.JSON(204, gin.H{"errMsg": "Patch Failed"})
 		return
 	}
 
 	// 将用户请求转发到消息队列中，等待消息队列对mysql进行操作并返回结果
 	t := time.Now()
 	// 生成uuid
-	u := uuid.NewV4()
+	u, _ := uuid.NewV4()
 	uid := u.String()
 	// 先判断是否能成功发送消息
 	err = mqueue.SendMessage(sellerName, couponName, uid, t.Unix())
