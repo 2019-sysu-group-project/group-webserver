@@ -376,6 +376,11 @@ type GetCous struct {
 func getCouponsInformation(c *gin.Context) {
 	Username := c.Param("username")
 	page := c.Query("page")
+	if !validateJWT(c) && checkUser(Username) == 1{
+		c.JSON(401, gin.H{
+			"errMsg": "认证错误",
+		})
+	}
 	var resu GetCous
 	var cou Coupon
 	deviation, _ := strconv.Atoi(page)
