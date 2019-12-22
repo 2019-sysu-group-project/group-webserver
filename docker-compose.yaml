@@ -2,13 +2,21 @@ version: '2'
 services:
   redis:
     image: "redis:alpine"
-    ports: 
-      - "16379:6379"
+    # ports: 
+    #   - "6379:6379"
   projectdb:
     image: "registry.cn-shenzhen.aliyuncs.com/weimch/group-project-mysql:v0.0.1"
-    ports: 
-      - "13306:3306"
+    # ports: 
+    #   - "13306:3306"
   rabbitmq:
     image: "registry.cn-shenzhen.aliyuncs.com/zhangshubo/zhangshubo:v0.0.1"
+    # ports: 
+    #   - "5672:5672"
+  webserver:
+    image: "registry.cn-shenzhen.aliyuncs.com/weimch/group-project-webserver:v0.0.1"
     ports: 
-      - "35672:5672"
+      - "18080:8080"
+    links: 
+      - redis
+      - projectdb
+      - rabbitmq

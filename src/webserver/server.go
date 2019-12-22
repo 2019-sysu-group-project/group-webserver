@@ -26,8 +26,10 @@ var redis_client *redis.Client
 var mysql_client *sql.DB
 
 func init() {
+	// time.Sleep(time.Second * 5)
+	// fmt.Println("Finish init server")
 	redis_client = redis.NewClient(&redis.Options{
-		Addr:     "127.0.0.1:16379",
+		Addr:     "redis:6379",
 		Password: "", // no password set
 		DB:       0,  // use default DB
 	})
@@ -38,7 +40,7 @@ func init() {
 		fmt.Println("Error open redis connection")
 		os.Exit(-1)
 	}
-	mysql_client, err = sql.Open("mysql", "root:123@tcp(127.0.0.1:13306)/projectdb")
+	mysql_client, err = sql.Open("mysql", "root:123@tcp(projectdb:3306)/projectdb")
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(-1)
@@ -374,7 +376,7 @@ type GetCous struct {
 func getCouponsInformation(c *gin.Context) {
 	Username := c.Param("username")
 	page := c.Query("page")
-	if !validateJWT(c) && checkUser(Username) == 1{
+	if !validateJWT(c) && checkUser(Username) == 1 {
 		c.JSON(401, gin.H{
 			"errMsg": "认证错误",
 		})
@@ -567,8 +569,9 @@ func testValidateJWT(c *gin.Context) {
 }
 
 func main() {
-	// gin.SetMode(gin.ReleaseMode)
+	gin.SetMode(gin.ReleaseMode)
 	router := setupRouter()
+	fmt.Println("Server started")
 	err := router.Run(":8080")
 	if err != nil {
 		fmt.Println("Error starting server")
