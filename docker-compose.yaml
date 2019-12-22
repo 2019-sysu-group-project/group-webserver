@@ -9,6 +9,6 @@ services:
     ports: 
       - "13306:3306"
   rabbitmq:
-    image: "swr.cn-south-1.myhuaweicloud.com/zhangshubo/group-project-rabbitmq:v0.0.1"
+    image: "registry.cn-shenzhen.aliyuncs.com/zhangshubo/zhangshubo:v0.0.1"
     ports: 
       - "35672:5672"
