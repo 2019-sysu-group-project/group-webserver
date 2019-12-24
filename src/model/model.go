@@ -124,6 +124,18 @@ func GetCoupons(username string) ([]CouponInfo, error) {
 }
 
 // OccupyCoupon 检查redis字段，若用户数已满，则直接返回；否则先写入redis，再交给消息队列处理
-func OccupyCoupon(coupon, username string) (bool, error) {
-	return false, nil
+func OccupyCoupon(coupon, username string) (int64, error) {
+	is, err := Redis_client.SIsMember(coupon+"#members", username).Result()
+	if err != nil {
+		return -1, err
+	}
+	if is {
+		return -1, nil
+	}
+	cnt, err := Redis_client.Incr(coupon + "#count").Result()
+	if err != nil {
+		return -1, err
+	}
+	_, err = Redis_client.SAdd(coupon+"#members", username).Result()
+	return cnt, err
 }
