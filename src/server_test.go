@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"webserver.example/model"
+	"webserver.example/router"
 )
 
 type GeneralResult struct {
@@ -32,7 +34,7 @@ type TestCouponsData struct {
 // 任务1
 func TestRegisterUser(t *testing.T) {
 	var result GeneralResult
-	router := SetupRouter()
+	router := router.SetupRouter()
 	// 创建客户
 	w := httptest.NewRecorder()
 	jsonStr := []byte(`{"username": "customer-test", "password": "123", "kind": "customer"}`)
@@ -61,9 +63,9 @@ func TestRegisterUser(t *testing.T) {
 	assert.Nil(t, json.NewDecoder(w.Body).Decode(&result))
 	assert.Equal(t, "", result.ErrMsg)
 	// 检查新用户是否创建成功
-	assert.True(t, isUserExist("customer-test"))
-	assert.True(t, isUserExist("customer-test1"))
-	assert.True(t, isUserExist("saler-test"))
+	assert.True(t, model.IsUserExist("customer-test"))
+	assert.True(t, model.IsUserExist("customer-test1"))
+	assert.True(t, model.IsUserExist("saler-test"))
 	// 重复创建新用户
 	w = httptest.NewRecorder()
 	jsonStr = []byte(`{"username": "customer-test", "password": "123", "kind": "customer"}`)
@@ -103,7 +105,7 @@ func TestRegisterUser(t *testing.T) {
 func TestUserLogin(t *testing.T) {
 	var result GeneralResult
 	var header string
-	router := SetupRouter()
+	router := router.SetupRouter()
 	// 空用户和空密码认证
 	w := httptest.NewRecorder()
 	jsonStr := []byte(`{"username": "", "password": ""}`)
@@ -176,7 +178,7 @@ func TestUserLogin(t *testing.T) {
 // 任务2
 func TestCreateCoupons(t *testing.T) {
 	var result GeneralResult
-	router := SetupRouter()
+	router := router.SetupRouter()
 	// 商家taobao创建优惠券coupons_xxx
 	w := httptest.NewRecorder()
 	jsonStr := []byte(`{"name": "coupons_xxx", "amount": 100, "description": "xxx", "stock": 500}`)
@@ -208,7 +210,7 @@ func TestCreateCoupons(t *testing.T) {
 
 func TestSample(t *testing.T) {
 	var result TestCouponsResponse
-	router := SetupRouter()
+	router := router.SetupRouter()
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/test", nil)
 	router.ServeHTTP(w, req)
@@ -221,7 +223,7 @@ func TestSample(t *testing.T) {
 // 任务2
 func TestGetCouponsInformation(t *testing.T) {
 	var result TestCouponsResponse
-	router := SetupRouter()
+	router := router.SetupRouter()
 	// 得到taobao商家创建的优惠券列表
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/users/taobao/coupons?page=1", nil)
@@ -254,7 +256,7 @@ func TestGetCouponsInformation(t *testing.T) {
 }
 
 func TestPatchCoupons(t *testing.T) {
-	router := SetupRouter()
+	router := router.SetupRouter()
 	w := httptest.NewRecorder()
 	jsonStr := []byte(`{"username": "bob", "password": "123456"}`)
 	req, _ := http.NewRequest("POST", "/api/auth", bytes.NewBuffer(jsonStr))
@@ -273,7 +275,7 @@ func TestPatchCoupons(t *testing.T) {
 // Param2: 返回响应所耗时间
 // 待后续并发进程调用
 func testPatchCoupons(t *testing.T) (int, int64) {
-	router := SetupRouter()
+	router := router.SetupRouter()
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("Patch", "/api/users/:username/coupons/:name", nil)
 	router.ServeHTTP(w, req)

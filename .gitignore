@@ -1,10 +1,1 @@
-*
-!.gitignore
-!README.md
-!docker-compose.yaml
-!image/
-!image/*
-!src/
-!src/webserver
-!src/webserver/*
-!src/webserver/**
+*.exe

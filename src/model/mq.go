@@ -1,4 +1,4 @@
-package mqueue
+package model
 
 import (
 	"encoding/json"
@@ -8,67 +8,6 @@ import (
 
 	"github.com/streadway/amqp"
 )
-
-type RequestMessage struct {
-	Username    string
-	Coupon      string
-	Uuid        string // 表示用户发起请求的唯一id
-	RequestTime int64  // 用户发起请求的时间
-	Result      int
-}
-
-func JudgeKeyExist(uuid string) bool {
-	_, ok := RequestResult[uuid]
-	return ok
-}
-
-// 向消息队列发送消息
-func SendMessage(username, couponName, uuid string, requestTime int64) error {
-	//创建Channel，如果所有的只用一个channel会怎么样？
-	ch, err := MQConnection.Channel()
-	if err != nil {
-		log.Println(err)
-		return err
-	}
-	defer ch.Close()
-	// 队列声明
-	q, err := ch.QueueDeclare(
-		"hello", // name
-		false,   // durable
-		false,   // delete when unused
-		false,   // exclusive
-		false,   // no-wait
-		nil,     // arguments
-	)
-	if err != nil {
-		log.Println(err)
-		return err
-	}
-	var request RequestMessage
-	request.Username = username
-	request.Coupon = couponName
-	request.Uuid = uuid
-	request.RequestTime = requestTime
-	b, err := json.Marshal(request)
-	if err != nil {
-		fmt.Println("error:", err)
-	}
-
-	err = ch.Publish(
-		"",     // exchange
-		q.Name, // routing key  可以直接用队列名做routekey?这是默认情况吗,没有声明的时候routing key为队列名称
-		false,  // mandatory
-		false,  // immediate
-		amqp.Publishing{
-			ContentType: "text/plain",
-			Body:        b,
-		})
-	if err != nil {
-		log.Println(err)
-		return err
-	}
-	return nil
-}
 
 // 从消息队列接收消息
 func ReceiveMessage(username, couponName, uuid string, requestTime int64) (error, int) {
@@ -134,7 +73,7 @@ func ReceiveMessage(username, couponName, uuid string, requestTime int64) (error
 			fmt.Printf("循环次数%v\n", count)
 			// 判断请求之前是否被处理过了
 			existFlag = JudgeKeyExist(uuid)
-			if existFlag{
+			if existFlag {
 				return RequestResult[uuid], nil
 			}
 
@@ -178,4 +117,57 @@ func ReceiveMessage(username, couponName, uuid string, requestTime int64) (error
 	}
 
 	return nil, result
+}
+
+// 向消息队列发送消息
+func SendMessage(username, couponName, uuid string, requestTime int64) error {
+	//创建Channel，如果所有的只用一个channel会怎么样？
+	ch, err := MQConnection.Channel()
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	defer ch.Close()
+	// 队列声明
+	q, err := ch.QueueDeclare(
+		"hello", // name
+		false,   // durable
+		false,   // delete when unused
+		false,   // exclusive
+		false,   // no-wait
+		nil,     // arguments
+	)
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	var request RequestMessage
+	request.Username = username
+	request.Coupon = couponName
+	request.Uuid = uuid
+	request.RequestTime = requestTime
+	b, err := json.Marshal(request)
+	if err != nil {
+		fmt.Println("error:", err)
+	}
+
+	err = ch.Publish(
+		"",     // exchange
+		q.Name, // routing key  可以直接用队列名做routekey?这是默认情况吗,没有声明的时候routing key为队列名称
+		false,  // mandatory
+		false,  // immediate
+		amqp.Publishing{
+			ContentType: "text/plain",
+			Body:        b,
+		})
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	return nil
+}
+
+func JudgeKeyExist(uuid string) bool {
+	_, ok := RequestResult[uuid]
+	return ok
 }
