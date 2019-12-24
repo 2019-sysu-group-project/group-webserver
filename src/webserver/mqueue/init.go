@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/streadway/amqp"
@@ -17,8 +16,8 @@ var maxConnectionTime = 5
 
 func init() {
 	fmt.Println("Starting server")
-	fmt.Println("init函数3被执行")
-	time.Sleep(3 * time.Second)
+	// fmt.Println("init函数3被执行")
+	// time.Sleep(3 * time.Second)
 	times := 1
 	for err := connectMQ(); err != nil; times++ {
 		if times == maxConnectionTime {

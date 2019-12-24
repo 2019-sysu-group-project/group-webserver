@@ -26,7 +26,7 @@ var redis_client *redis.Client
 var mysql_client *sql.DB
 
 func init() {
-	fmt.Println("init函数2被执行")
+	// fmt.Println("init函数2被执行")
 	// time.Sleep(time.Second * 5)
 	// fmt.Println("Finish init server")
 	redis_client = redis.NewClient(&redis.Options{
