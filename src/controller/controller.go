@@ -218,12 +218,12 @@ func PatchCoupons(c *gin.Context) {
 	u := uuid.NewV4()
 	uid := u.String()
 	// 先判断是否能成功发送消息
-	err = model.SendMessage(sellerName, couponName, uid, t.Unix())
+	err = model.SendMessage(userName, couponName, uid, t.Unix())
 	if err != nil {
 		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
 		return
 	}
-	err, res := model.ReceiveMessage(sellerName, couponName, uid, t.Unix())
+	err, res := model.ReceiveMessage(userName, couponName, uid, t.Unix())
 	if err != nil {
 		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
 		return
