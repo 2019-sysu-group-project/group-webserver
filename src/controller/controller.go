@@ -3,6 +3,7 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"strconv"
 	"time"
 
@@ -166,11 +167,12 @@ func PatchCoupons(c *gin.Context) {
 	})
 	// 5xx: 服务端错误
 	if err != nil {
-		c.JSON(504, gin.H{"errMsg": "Authorization failed"})
+		log.Println(err)
+		c.JSON(504, gin.H{"errMsg": "server error"})
 		return
 	}
 	//认证失败
-	if err != nil || ValidateJWT(c) == false {
+	if ValidateJWT(c) == false {
 		c.JSON(401, gin.H{"errMsg": "Authorization Failed"})
 		return
 	}
@@ -190,10 +192,9 @@ func PatchCoupons(c *gin.Context) {
 	}
 	// redis这部分可能有bug!!!(start)
 	coupon, err := model.GetCouponsFromRedisOrDatabase(sellerName, couponName)
-	fmt.Println(coupon)
-	fmt.Println(err)
 	// 5xx: 服务端错误
 	if err != nil {
+		log.Println(err)
 		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
 		return
 	}
@@ -203,6 +204,10 @@ func PatchCoupons(c *gin.Context) {
 		return
 	}
 
+	// TODO: 1. 使用pipeline优化redis使用
+	//       2. 检查已被抢到的数量，超过则直接返回抢光
+	//       3. 没抢光检查是否在set中，是直接返回
+	//       4. 
 	coupon.Left--
 	model.SetCouponsToRedis(userName, coupon)
 	// 5xx: 服务端错误
