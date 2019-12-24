@@ -74,8 +74,8 @@ func GetCouponsFromRedisOrDatabase(Username string, cou string) (Coupon, error) 
 	result, err := GetCouponsFromRedis(Username, cou)
 	if err != nil {
 		query, err := Mysql_client.Query("SELECT * FROM Coupon WHERE Username=? AND Coupons=?", Username, cou)
+		defer query.Close()
 		if err == nil {
-			defer query.Close()
 			query.Next()
 			var id int
 			query.Scan(&id, &result.Username, &result.Coupons, &result.Amount,
