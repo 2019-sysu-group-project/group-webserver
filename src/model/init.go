@@ -9,12 +9,14 @@ import (
 
 	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/jinzhu/gorm"
 	"github.com/streadway/amqp"
 )
 
 // redis 默认是没有密码和使用0号db
 var Redis_client *redis.Client
 var Mysql_client *sql.DB
+var GormDB *gorm.DB
 
 var MQConnection *amqp.Connection
 var RequestResult = make(map[string]int)
@@ -35,21 +37,21 @@ func init() {
 		fmt.Println("Error open redis connection")
 		os.Exit(-1)
 	}
-	//mysql_client, err = sql.Open("mysql", "root:123@tcp(projectdb:3306)/projectdb")
-	Mysql_client, err = sql.Open("mysql", "root:123@tcp(db:3306)/projectdb")
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(-1)
-	}
-	_, err = Mysql_client.Query("SELECT * FROM User")
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(-1)
-	}
-	fmt.Println("Starting server")
-	// fmt.Println("init函数3被执行")
-	// time.Sleep(3 * time.Second)
+	//连接mysql
 	times := 1
+	for err := connectDB(); err != nil; times++ {
+		if times == maxConnectionTime {
+			panic(fmt.Sprint("can not connect to db after ", times, " times"))
+			os.Exit(1)
+			// break
+		}
+		log.Print("connect database with error", err, "reconnecting...")
+	}
+	// 将gorm调用的接口实时对应输出为真正执行的sql语句，用于debug使用
+	GormDB.LogMode(true)
+	fmt.Println("Starting server")
+	// time.Sleep(3 * time.Second)
+	times = 1
 	for err := connectMQ(); err != nil; times++ {
 		if times == maxConnectionTime {
 			panic(fmt.Sprint("can not connect to mq after ", times, " times"))
@@ -67,5 +69,23 @@ func connectMQ() error {
 		return err
 	}
 	MQConnection = conn
+	return nil
+}
+
+func connectDB() error {
+	/* Database config */
+	var Db_name = "projectdb"
+	var Db_user = "root"
+	var Db_password = "123"
+	var MySqlLocation = "127.0.0.1"
+	var MySqlPort = "13306"
+
+	var Dbconnection = Db_user + ":" + Db_password + "@tcp(" + MySqlLocation + ":" + MySqlPort + ")/" + Db_name
+	db, err := gorm.Open("mysql", Dbconnection+"?charset=utf8&parseTime=True") //这里的True首字母要大写！
+	if err != nil {
+		return err
+	}
+	//db.AutoMigrate(&User{}).AutoMigrate(&Product{}).AutoMigrate(&Service{})
+	GormDB = db
 	return nil
 }

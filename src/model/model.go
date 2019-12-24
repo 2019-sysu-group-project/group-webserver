@@ -1,7 +1,6 @@
 package model
 
 import (
-	"database/sql"
 	"fmt"
 	"time"
 
@@ -11,9 +10,9 @@ import (
 // check if the user already exists in DB
 func IsUserExist(usernameQuery string) bool {
 	var user User_DB
-	err := Mysql_client.QueryRow("SELECT username, password, kind FROM User WHERE username=?", usernameQuery).Scan(&user.Username, &user.Password, &user.Kind)
-	if err != nil {
-		fmt.Println(err)
+	query := GormDB.Where("username = ?", usernameQuery).Find(&user)
+	if query.Error != nil {
+		fmt.Println(query.Error)
 		return false
 	}
 	return true
@@ -21,17 +20,22 @@ func IsUserExist(usernameQuery string) bool {
 
 // insert user into DB
 func InsertUser(username string, password string, kind int) bool {
-	result, err := Mysql_client.Exec("INSERT INTO User(username, password, kind) VALUES(?,?,?)", username, password, kind)
-	if err != nil {
-		// insert failed
+	user := User_DB{Username: username, Password: password, Kind: kind}
+
+	query := GormDB.Create(&user)
+	if query.Error != nil {
 		return false
 	}
-	_, err = result.LastInsertId()
-	if err != nil {
-		return false
+	return true
+}
+
+func CreateCoupon(coupon CouponInfo) error {
+	couponInsert := coupon
+	query := GormDB.Create(&couponInsert)
+	if query.Error != nil {
+		return query.Error
 	}
-	_, err = result.RowsAffected()
-	return err == nil
+	return nil
 }
 
 // authenticate user from DB
@@ -39,22 +43,20 @@ func AuthenticateUser(username string, password string) bool {
 	passwordHash := lib.Md5Hash(password)
 	// passwordHash := password
 	var user User
-	err := Mysql_client.QueryRow("SELECT username, password FROM User WHERE username=?", username).Scan(&user.Username, &user.Password)
-	if err == sql.ErrNoRows {
+	query := GormDB.Where("username = ?", username).Find(&user)
+	if query.Error != nil {
 		return false
-	} else {
-		if user.Username == username && user.Password == passwordHash {
-			return true
-		}
+	}
+	if user.Username == username && user.Password == passwordHash {
+		return true
 	}
 	return false
 }
 
 func CheckUser(username string) int {
 	var user User_DB
-	err := Mysql_client.QueryRow("SELECT username, password, kind FROM User WHERE username=?",
-		username).Scan(&user.Username, &user.Password, &user.Kind)
-	if err != nil { //未查询到的情况
+	query := GormDB.Where("username = ?", username).Find(&user)
+	if query.Error != nil {
 		return 2
 	} else if user.Kind == 0 {
 		return 1
@@ -73,28 +75,30 @@ func GetCouponsFromRedisOrDatabase(Username string, cou string) (Coupon, error) 
 	var result Coupon
 	result, err := GetCouponsFromRedis(Username, cou)
 	if err != nil {
-		query, err := Mysql_client.Query("SELECT * FROM Coupon WHERE Username=? AND Coupons=?", Username, cou)
-		defer query.Close()
-		if err == nil {
-			query.Next()
-			var id int
-			query.Scan(&id, &result.Username, &result.Coupons, &result.Amount,
-				&result.Stock, &result.Left, &result.Description)
-			SetCouponsToRedis(Username, result)
-			return result, nil
+		var coupon CouponInfo
+		query := GormDB.Where("username = ? AND coupons = ?", Username, cou).Find(&coupon)
+		if query.Error != nil {
+			return result, query.Error
 		}
+		result.Username = coupon.Username
+		result.Coupons = coupon.Coupons    
+		result.Amount = int32(coupon.Amount)
+		result.Stock = float32(coupon.Stock)
+		result.Left = int32(coupon.Left)
+		result.Description = coupon.Description
+		SetCouponsToRedis(Username, result)
+		return result, nil
 	}
 	return result, err
 }
 
 func CheckCouponNameAva(couponName string) bool {
-	var coupon Coupon
-	err := Mysql_client.QueryRow("SELECT coupons FROM Coupon WHERE coupons=?",
-		couponName).Scan(&coupon.Coupons)
-	if err == nil {
+	var coupon CouponInfo
+	query := GormDB.Where("coupons = ?", couponName).Find(&coupon)
+	if query.Error != nil {
+		fmt.Println(query.Error)
 		return false
 	}
-	fmt.Println(err)
 	return true
 }
 

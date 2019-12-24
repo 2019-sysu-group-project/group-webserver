@@ -43,6 +43,15 @@ type RequestMessage struct {
 	Result      int
 }
 
+type CouponInfo struct {
+	Username    string  `gorm:"not_null;column:username"`     //用户名
+	Coupons     string  `gorm:"not_null;column:coupons"`      //优惠券名称
+	Amount      int     `gorm:"not_null;column:amount"`       //该优惠券的数目
+	Stock       float64 `gorm:"not_null;column:stock"`        //优惠券面额
+	Left        int     `gorm:"not_null;column:left_coupons"` //优惠券的剩余数目
+	Description string  `gorm:"not_null;column:description"`  //优惠券描述信息
+}
+
 //将字符串转换成Coupon
 func (c *Coupon) ToCoupon(s string) {
 	j := strings.LastIndex(s, "#")
