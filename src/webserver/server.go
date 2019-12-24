@@ -26,10 +26,11 @@ var redis_client *redis.Client
 var mysql_client *sql.DB
 
 func init() {
+	fmt.Println("init函数2被执行")
 	// time.Sleep(time.Second * 5)
 	// fmt.Println("Finish init server")
 	redis_client = redis.NewClient(&redis.Options{
-		Addr:     "redis:6379",
+		Addr:     "127.0.0.1:16379",
 		Password: "", // no password set
 		DB:       0,  // use default DB
 	})
@@ -40,7 +41,8 @@ func init() {
 		fmt.Println("Error open redis connection")
 		os.Exit(-1)
 	}
-	mysql_client, err = sql.Open("mysql", "root:123@tcp(projectdb:3306)/projectdb")
+	//mysql_client, err = sql.Open("mysql", "root:123@tcp(projectdb:3306)/projectdb")
+	mysql_client, err = sql.Open("mysql", "root:123@tcp(127.0.0.1:13306)/projectdb")
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(-1)
@@ -219,9 +221,9 @@ func userLogin(c *gin.Context) {
 					}
 					c.Header("Authorization", token)
 					c.JSON(200, gin.H{
-						// "Authorization": token,
-						"kind":   kindString,
-						"errMsg": "",
+						"Authorization": token,
+						"kind":          kindString,
+						"errMsg":        "",
 					})
 					return
 				}
@@ -278,6 +280,7 @@ func insertUser(username string, password string, kind int) bool {
 // authenticate user from DB
 func authenticateUser(username string, password string) bool {
 	passwordHash := md5Hash(password)
+	// passwordHash := password
 	var user User
 	err := mysql_client.QueryRow("SELECT username, password FROM User WHERE username=?", username).Scan(&user.Username, &user.Password)
 	if err == sql.ErrNoRows {
@@ -341,6 +344,17 @@ func checkUser(username string) int {
 	}
 }
 
+func checkCouponNameAva(couponName string) bool {
+	var coupon Coupon
+	err := mysql_client.QueryRow("SELECT coupons FROM Coupon WHERE coupons=?",
+		couponName).Scan(&coupon.Coupons)
+	if err == nil {
+		return false
+	}
+	fmt.Println(err)
+	return true
+}
+
 // 任务2
 func createCoupons(c *gin.Context) {
 	if !validateJWT(c) {
@@ -359,6 +373,11 @@ func createCoupons(c *gin.Context) {
 		} else if flag == 1 {
 			c.JSON(400, gin.H{"errMsg": "非商家不能创建优惠券"})
 		} else {
+			availability := checkCouponNameAva(couponJSON.Coupons)
+			if availability == false {
+				c.JSON(400, gin.H{"errMsg": "相同名字的优惠券已存在"})
+				return
+			}
 			mysql_client.Query("INSERT INTO Coupon (username, coupons, amount, stock, left_coupons, description) VALUES (?,?,?,?,?,?)",
 				couponJSON.Username, couponJSON.Coupons, couponJSON.Amount,
 				couponJSON.Stock, couponJSON.Left, couponJSON.Description)
@@ -427,9 +446,11 @@ func getCouponsFromRedisOrDatabase(Username string, cou string) (Coupon, error) 
 		if err == nil {
 			defer query.Close()
 			query.Next()
-			query.Scan(&result.Username, &result.Coupons, &result.Amount,
+			var id int
+			query.Scan(&id, &result.Username, &result.Coupons, &result.Amount,
 				&result.Stock, &result.Left, &result.Description)
 			setCouponsToRedis(Username, result)
+			return result, nil
 		}
 	}
 	return result, err
@@ -439,12 +460,12 @@ func getCouponsFromRedisOrDatabase(Username string, cou string) (Coupon, error) 
 func patchCoupons(c *gin.Context) {
 	var err error
 	tokenString := c.Request.Header.Get("Authorization")
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &MyClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return key, nil
 	})
 	// 5xx: 服务端错误
 	if err != nil {
-		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
+		c.JSON(504, gin.H{"errMsg": "Authorization failed"})
 		return
 	}
 	//认证失败
@@ -466,8 +487,10 @@ func patchCoupons(c *gin.Context) {
 		c.JSON(204, gin.H{"errMsg": "Already had the same coupon"})
 		return
 	}
-
+	// redis这部分可能有bug!!!(start)
 	coupon, err := getCouponsFromRedisOrDatabase(sellerName, couponName)
+	fmt.Println(coupon)
+	fmt.Println(err)
 	// 5xx: 服务端错误
 	if err != nil {
 		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
@@ -486,6 +509,7 @@ func patchCoupons(c *gin.Context) {
 		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
 		return
 	}
+	// redis这部分可能有bug!!!(end)
 
 	// 将用户请求转发到消息队列中，等待消息队列对mysql进行操作并返回结果
 	t := time.Now()
@@ -503,8 +527,10 @@ func patchCoupons(c *gin.Context) {
 		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
 		return
 	}
+	fmt.Println(res)
 
 	//返回0代表优惠券数目为0，返回2代表抢券成功，返回1代表用户已经抢到该券不可重复抢，返回-1代表数据库访问错误，返回-2代表超时
+
 	switch res {
 	case -2:
 		c.JSON(504, gin.H{"errMsg": "Time out"})
@@ -526,9 +552,10 @@ func patchCoupons(c *gin.Context) {
 		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
 		return
 	}
+
 }
 
-func setupRouter() *gin.Engine {
+func SetupRouter() *gin.Engine {
 	router := gin.Default()
 	// task1
 	router.POST("/api/users", registerUser)
@@ -570,7 +597,7 @@ func testValidateJWT(c *gin.Context) {
 
 func main() {
 	gin.SetMode(gin.ReleaseMode)
-	router := setupRouter()
+	router := SetupRouter()
 	fmt.Println("Server started")
 	err := router.Run(":8080")
 	if err != nil {

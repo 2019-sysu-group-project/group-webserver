@@ -32,7 +32,7 @@ type TestCouponsData struct {
 // 任务1
 func TestRegisterUser(t *testing.T) {
 	var result GeneralResult
-	router := setupRouter()
+	router := SetupRouter()
 	// 创建客户
 	w := httptest.NewRecorder()
 	jsonStr := []byte(`{"username": "customer-test", "password": "123", "kind": "customer"}`)
@@ -103,7 +103,7 @@ func TestRegisterUser(t *testing.T) {
 func TestUserLogin(t *testing.T) {
 	var result GeneralResult
 	var header string
-	router := setupRouter()
+	router := SetupRouter()
 	// 空用户和空密码认证
 	w := httptest.NewRecorder()
 	jsonStr := []byte(`{"username": "", "password": ""}`)
@@ -176,7 +176,7 @@ func TestUserLogin(t *testing.T) {
 // 任务2
 func TestCreateCoupons(t *testing.T) {
 	var result GeneralResult
-	router := setupRouter()
+	router := SetupRouter()
 	// 商家taobao创建优惠券coupons_xxx
 	w := httptest.NewRecorder()
 	jsonStr := []byte(`{"name": "coupons_xxx", "amount": 100, "description": "xxx", "stock": 500}`)
@@ -208,7 +208,7 @@ func TestCreateCoupons(t *testing.T) {
 
 func TestSample(t *testing.T) {
 	var result TestCouponsResponse
-	router := setupRouter()
+	router := SetupRouter()
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/test", nil)
 	router.ServeHTTP(w, req)
@@ -221,7 +221,7 @@ func TestSample(t *testing.T) {
 // 任务2
 func TestGetCouponsInformation(t *testing.T) {
 	var result TestCouponsResponse
-	router := setupRouter()
+	router := SetupRouter()
 	// 得到taobao商家创建的优惠券列表
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/users/taobao/coupons?page=1", nil)
@@ -253,13 +253,27 @@ func TestGetCouponsInformation(t *testing.T) {
 	assert.Equal(t, 0, len(result.Data))
 }
 
+func TestPatchCoupons(t *testing.T) {
+	router := SetupRouter()
+	w := httptest.NewRecorder()
+	jsonStr := []byte(`{"username": "bob", "password": "123456"}`)
+	req, _ := http.NewRequest("POST", "/api/auth", bytes.NewBuffer(jsonStr))
+	router.ServeHTTP(w, req)
+	token := w.Header().Get("Authorization")
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("PATCH", "/api/users/taobao/coupons/household", nil)
+	req.Header.Set("Authorization", token)
+	router.ServeHTTP(w, req)
+	assert.Equal(t, 200, w.Code)
+}
+
 // 任务3
 // @Return
 // Param1: 返回1，若异常状态为5xx；否则返回0
 // Param2: 返回响应所耗时间
 // 待后续并发进程调用
 func testPatchCoupons(t *testing.T) (int, int64) {
-	router := setupRouter()
+	router := SetupRouter()
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("Patch", "/api/users/:username/coupons/:name", nil)
 	router.ServeHTTP(w, req)
