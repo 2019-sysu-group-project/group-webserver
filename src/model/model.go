@@ -107,3 +107,8 @@ func GetCouponsFromRedis(Username string, cou string) (Coupon, error) {
 	}
 	return result, err
 }
+
+// OccupyCoupon 检查redis字段，若用户数已满，则直接返回；否则先写入redis，再交给消息队列处理
+func OccupyCoupon(coupon, username string) (bool, error) {
+
+}

@@ -62,15 +62,6 @@ func RegisterUser(c *gin.Context) {
 	})
 }
 
-func ValidateJWT(c *gin.Context) bool {
-	// 需要编写JWT的验证机制，作为其他人能调用的一部分
-	token := c.Request.Header.Get("Authorization")
-	_, err := jwt.Parse(token, func(*jwt.Token) (interface{}, error) {
-		return lib.Key, nil
-	})
-	return err == nil
-}
-
 func UserLogin(c *gin.Context) {
 	var json model.User
 	if c.BindJSON(&json) == nil {
@@ -138,7 +129,7 @@ func UserLogin(c *gin.Context) {
 }
 
 func CreateCoupons(c *gin.Context) {
-	if !validateJWT(c) {
+	if !ValidateJWT(c) {
 		c.JSON(401, gin.H{"errMsg": "认证失败"})
 	}
 	var couponJSON model.Coupon
@@ -179,7 +170,7 @@ func PatchCoupons(c *gin.Context) {
 		return
 	}
 	//认证失败
-	if err != nil || validateJWT(c) == false {
+	if err != nil || ValidateJWT(c) == false {
 		c.JSON(401, gin.H{"errMsg": "Authorization Failed"})
 		return
 	}
@@ -264,10 +255,11 @@ func PatchCoupons(c *gin.Context) {
 	}
 
 }
+
 func GetCouponsInformation(c *gin.Context) {
 	Username := c.Param("username")
 	page := c.Query("page")
-	if !validateJWT(c) && model.CheckUser(Username) == 1 {
+	if !ValidateJWT(c) && model.CheckUser(Username) == 1 {
 		c.JSON(401, gin.H{
 			"errMsg": "认证错误",
 		})
@@ -292,13 +284,4 @@ func GetCouponsInformation(c *gin.Context) {
 	} else {
 		c.JSON(401, gin.H{"errMsg": "用户不存在"})
 	}
-}
-
-func validateJWT(c *gin.Context) bool {
-	// 需要编写JWT的验证机制，作为其他人能调用的一部分
-	token := c.Request.Header.Get("Authorization")
-	_, err := jwt.Parse(token, func(*jwt.Token) (interface{}, error) {
-		return lib.Key, nil
-	})
-	return err == nil
 }
