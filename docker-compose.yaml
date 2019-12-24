@@ -4,7 +4,7 @@ services:
     image: "redis:alpine"
     ports: 
       - "6379"
-  projectdb:
+  db:
     image: "registry.cn-shenzhen.aliyuncs.com/weimch/group-project-mysql:v0.0.1"
     ports: 
       - "13306:3306"
@@ -13,10 +13,19 @@ services:
     ports: 
       - "5672"
   webserver:
-    image: "registry.cn-shenzhen.aliyuncs.com/weimch/group-project-webserver:latest"
+    build:
+      context: ./src/
+      dockerfile: Dockerfile
     ports: 
       - "20080:8080"
     links: 
       - redis
-      - projectdb
+      - db
       - rabbitmq
+  mq:
+    build:
+      context: ../message-queue/
+      dockerfile: Dockerfile
+    links:
+      - rabbitmq
+      - db

@@ -14,6 +14,10 @@ import (
 	"webserver.example/model"
 )
 
+func init() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+}
+
 func RegisterUser(c *gin.Context) {
 	var json model.User
 
@@ -207,7 +211,7 @@ func PatchCoupons(c *gin.Context) {
 	// TODO: 1. 使用pipeline优化redis使用
 	//       2. 检查已被抢到的数量，超过则直接返回抢光
 	//       3. 没抢光检查是否在set中，是直接返回
-	//       4. 
+	//       4.
 	coupon.Left--
 	model.SetCouponsToRedis(userName, coupon)
 	// 5xx: 服务端错误

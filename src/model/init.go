@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
@@ -21,11 +22,9 @@ var RequestResult = make(map[string]int)
 var maxConnectionTime = 5
 
 func init() {
-	// fmt.Println("init函数2被执行")
-	// time.Sleep(time.Second * 5)
-	// fmt.Println("Finish init server")
+	time.Sleep(30 * time.Second)
 	Redis_client = redis.NewClient(&redis.Options{
-		Addr:     "127.0.0.1:16379",
+		Addr:     "redis:6379",
 		Password: "", // no password set
 		DB:       0,  // use default DB
 	})
@@ -37,7 +36,7 @@ func init() {
 		os.Exit(-1)
 	}
 	//mysql_client, err = sql.Open("mysql", "root:123@tcp(projectdb:3306)/projectdb")
-	Mysql_client, err = sql.Open("mysql", "root:123@tcp(127.0.0.1:13306)/projectdb")
+	Mysql_client, err = sql.Open("mysql", "root:123@tcp(db:3306)/projectdb")
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(-1)
@@ -62,7 +61,7 @@ func init() {
 }
 
 func connectMQ() error {
-	conn, err := amqp.Dial("amqp://guest:guest@127.0.0.1:35672/")
+	conn, err := amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
 	if err != nil {
 		log.Println(err)
 		return err
