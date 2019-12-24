@@ -19,13 +19,14 @@ func ReceiveMessage(username, couponName, uuid string, requestTime int64) (error
 	}
 	defer ch.Close()
 	// 队列声明
+	// 接收消息需要使用另一条队列
 	q, err := ch.QueueDeclare(
-		"hello", // name
-		false,   // durable
-		false,   // delete when unused
-		false,   // exclusive
-		false,   // no-wait
-		nil,     // arguments
+		"hello2", // name
+		false,    // durable
+		false,    // delete when unused
+		false,    // exclusive
+		false,    // no-wait
+		nil,      // arguments
 	)
 	if err != nil {
 		log.Println(err)
