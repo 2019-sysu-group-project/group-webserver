@@ -9,7 +9,7 @@ import (
 
 // check if the user already exists in DB
 func IsUserExist(usernameQuery string) bool {
-	var user User_DB
+	var user User
 	query := GormDB.Where("username = ?", usernameQuery).Find(&user)
 	if query.Error != nil {
 		fmt.Println(query.Error)
@@ -20,7 +20,7 @@ func IsUserExist(usernameQuery string) bool {
 
 // insert user into DB
 func InsertUser(username string, password string, kind int) bool {
-	user := User_DB{Username: username, Password: password, Kind: kind}
+	user := User{Username: username, Password: password, Kind: kind}
 
 	query := GormDB.Create(&user)
 	if query.Error != nil {
@@ -30,8 +30,7 @@ func InsertUser(username string, password string, kind int) bool {
 }
 
 func CreateCoupon(coupon CouponInfo) error {
-	couponInsert := coupon
-	query := GormDB.Create(&couponInsert)
+	query := GormDB.Create(&coupon)
 	if query.Error != nil {
 		return query.Error
 	}
@@ -54,7 +53,7 @@ func AuthenticateUser(username string, password string) bool {
 }
 
 func CheckUser(username string) int {
-	var user User_DB
+	var user User
 	query := GormDB.Where("username = ?", username).Find(&user)
 	if query.Error != nil {
 		return 2
@@ -81,7 +80,7 @@ func GetCouponsFromRedisOrDatabase(Username string, cou string) (Coupon, error) 
 			return result, query.Error
 		}
 		result.Username = coupon.Username
-		result.Coupons = coupon.Coupons    
+		result.Coupons = coupon.Coupons
 		result.Amount = int32(coupon.Amount)
 		result.Stock = float32(coupon.Stock)
 		result.Left = int32(coupon.Left)
@@ -95,11 +94,14 @@ func GetCouponsFromRedisOrDatabase(Username string, cou string) (Coupon, error) 
 func CheckCouponNameAva(couponName string) bool {
 	var coupon CouponInfo
 	query := GormDB.Where("coupons = ?", couponName).Find(&coupon)
+	if query.RecordNotFound() {
+		return true
+	}
 	if query.Error != nil {
 		fmt.Println(query.Error)
 		return false
 	}
-	return true
+	return false
 }
 
 // 任务2
@@ -110,6 +112,15 @@ func GetCouponsFromRedis(Username string, cou string) (Coupon, error) {
 		result.ToCoupon(re)
 	}
 	return result, err
+}
+
+func GetCoupons(username string) ([]CouponInfo, error) {
+	ret := make([]CouponInfo, 0)
+	query := GormDB.Where("username = ?", username).Model(&CouponInfo{}).Find(&ret)
+	if query.RecordNotFound() {
+		return ret, nil
+	}
+	return ret, query.Error
 }
 
 // OccupyCoupon 检查redis字段，若用户数已满，则直接返回；否则先写入redis，再交给消息队列处理

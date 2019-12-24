@@ -1,7 +1,6 @@
 package model
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
 	"os"
@@ -15,7 +14,6 @@ import (
 
 // redis 默认是没有密码和使用0号db
 var Redis_client *redis.Client
-var Mysql_client *sql.DB
 var GormDB *gorm.DB
 
 var MQConnection *amqp.Connection
@@ -77,8 +75,8 @@ func connectDB() error {
 	var Db_name = "projectdb"
 	var Db_user = "root"
 	var Db_password = "123"
-	var MySqlLocation = "127.0.0.1"
-	var MySqlPort = "13306"
+	var MySqlLocation = "db"
+	var MySqlPort = "3306"
 
 	var Dbconnection = Db_user + ":" + Db_password + "@tcp(" + MySqlLocation + ":" + MySqlPort + ")/" + Db_name
 	db, err := gorm.Open("mysql", Dbconnection+"?charset=utf8&parseTime=True") //这里的True首字母要大写！

@@ -6,13 +6,6 @@ import (
 	"strings"
 )
 
-// User_DB not known yet
-type User_DB struct {
-	Username string
-	Password string
-	Kind     int
-}
-
 type GetCous struct {
 	ErrMsg string   `json:"errMsg"`
 	Data   []Coupon `json:"data"`
@@ -30,9 +23,14 @@ type Coupon struct {
 
 // User records user's name, password and kind to idetify if it's a seller or a buyer
 type User struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Kind     string `json:"kind"`
+	Username string
+	Password string
+	Kind     int
+}
+
+// 设置FactoryInfo对应的表名为`f_FactoryInfo`
+func (User) TableName() string {
+	return "User"
 }
 
 type RequestMessage struct {
@@ -44,12 +42,17 @@ type RequestMessage struct {
 }
 
 type CouponInfo struct {
-	Username    string  `gorm:"not_null;column:username"`     //用户名
-	Coupons     string  `gorm:"not_null;column:coupons"`      //优惠券名称
-	Amount      int     `gorm:"not_null;column:amount"`       //该优惠券的数目
-	Stock       float64 `gorm:"not_null;column:stock"`        //优惠券面额
-	Left        int     `gorm:"not_null;column:left_coupons"` //优惠券的剩余数目
-	Description string  `gorm:"not_null;column:description"`  //优惠券描述信息
+	Username    string `gorm:"not_null;column:username"`     //用户名
+	Coupons     string `gorm:"not_null;column:coupons"`      //优惠券名称
+	Amount      int    `gorm:"not_null;column:amount"`       //该优惠券的数目
+	Stock       int    `gorm:"not_null;column:stock"`        //优惠券面额
+	Left        int    `gorm:"not_null;column:left_coupons"` //优惠券的剩余数目
+	Description string `gorm:"not_null;column:description"`  //优惠券描述信息
+}
+
+// 设置FactoryInfo对应的表名为`f_FactoryInfo`
+func (CouponInfo) TableName() string {
+	return "Coupon"
 }
 
 //将字符串转换成Coupon

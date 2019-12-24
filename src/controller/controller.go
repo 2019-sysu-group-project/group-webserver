@@ -1,10 +1,8 @@
 package controller
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
-	"strconv"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -19,7 +17,7 @@ func init() {
 }
 
 func RegisterUser(c *gin.Context) {
-	var json model.User
+	var json User
 
 	if c.BindJSON(&json) == nil {
 		username := json.Username
@@ -93,9 +91,8 @@ func UserLogin(c *gin.Context) {
 				})
 				return
 			}
-			var user model.User_DB
-			err := model.Mysql_client.QueryRow("SELECT kind FROM User WHERE username=?", json.Username).Scan(&user.Kind)
-			if err != nil {
+			kind := model.CheckUser(json.Username)
+			if kind == 2 {
 				c.JSON(500, gin.H{
 					"kind":   "",
 					"errMsg": "Query DB failed.",
@@ -103,9 +100,9 @@ func UserLogin(c *gin.Context) {
 				return
 			}
 			var kindString string
-			if user.Kind == 0 {
+			if kind == 0 {
 				kindString = "customer"
-			} else if user.Kind == 1 {
+			} else if kind == 1 {
 				kindString = "saler"
 			} else {
 				c.JSON(500, gin.H{
@@ -143,24 +140,34 @@ func CreateCoupons(c *gin.Context) {
 	couponJSON.Left = couponJSON.Amount
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
-	} else {
-		flag := model.CheckUser(couponJSON.Username)
-		if flag == 2 {
-			c.JSON(400, gin.H{"errMsg": "不存在的商家"})
-		} else if flag == 1 {
-			c.JSON(400, gin.H{"errMsg": "非商家不能创建优惠券"})
-		} else {
-			availability := model.CheckCouponNameAva(couponJSON.Coupons)
-			if availability == false {
-				c.JSON(400, gin.H{"errMsg": "相同名字的优惠券已存在"})
-				return
-			}
-			model.Mysql_client.Query("INSERT INTO Coupon (username, coupons, amount, stock, left_coupons, description) VALUES (?,?,?,?,?,?)",
-				couponJSON.Username, couponJSON.Coupons, couponJSON.Amount,
-				couponJSON.Stock, couponJSON.Left, couponJSON.Description)
-			c.JSON(201, gin.H{"errMsg": ""})
-		}
+		return
 	}
+	flag := model.CheckUser(couponJSON.Username)
+	if flag == 2 {
+		c.JSON(400, gin.H{"errMsg": "不存在的商家"})
+		return
+	}
+	if flag == 1 {
+		c.JSON(400, gin.H{"errMsg": "非商家不能创建优惠券"})
+		return
+	}
+	availability := model.CheckCouponNameAva(couponJSON.Coupons)
+	if availability == false {
+		c.JSON(400, gin.H{"errMsg": "相同名字的优惠券已存在"})
+		return
+	}
+	err = model.CreateCoupon(model.CouponInfo{
+		Username:    couponJSON.Username,
+		Coupons:     couponJSON.Coupons,
+		Amount:      int(couponJSON.Amount),
+		Stock:       int(couponJSON.Stock),
+		Left:        int(couponJSON.Left),
+		Description: couponJSON.Description,
+	})
+	if err != nil {
+		c.JSON(500, gin.H{"errMsg": err})
+	}
+	c.JSON(201, gin.H{"errMsg": ""})
 }
 
 func PatchCoupons(c *gin.Context) {
@@ -208,10 +215,6 @@ func PatchCoupons(c *gin.Context) {
 		return
 	}
 
-	// TODO: 1. 使用pipeline优化redis使用
-	//       2. 检查已被抢到的数量，超过则直接返回抢光
-	//       3. 没抢光检查是否在set中，是直接返回
-	//       4.
 	coupon.Left--
 	model.SetCouponsToRedis(userName, coupon)
 	// 5xx: 服务端错误
@@ -265,30 +268,23 @@ func PatchCoupons(c *gin.Context) {
 
 }
 
+// TODO: add page
 func GetCouponsInformation(c *gin.Context) {
 	Username := c.Param("username")
-	page := c.Query("page")
+	// page := c.Query("page")
 	if !ValidateJWT(c) && model.CheckUser(Username) == 1 {
 		c.JSON(401, gin.H{
 			"errMsg": "认证错误",
 		})
 	}
-	var resu model.GetCous
-	var cou model.Coupon
-	deviation, _ := strconv.Atoi(page)
+	// deviation, _ := strconv.Atoi(page)
 	flag := model.CheckUser(Username)
 	if flag != 2 {
-		query, _ := model.Mysql_client.Query("SELECT username, coupons, amount, stock, left_coupons, description FROM Coupon WHERE username=? limit ?,20",
-			Username, (deviation-1)*20)
-		//	defer query.Close()
-		for query.Next() {
-			query.Scan(&cou.Username, &cou.Coupons, &cou.Amount,
-				&cou.Stock, &cou.Left, &cou.Description)
-			resu.Data = append(resu.Data, cou)
+		result, err := model.GetCoupons(Username)
+		if err != nil {
+			c.JSON(500, gin.H{"errMsg": err})
+			return
 		}
-		resultJSON, _ := json.Marshal(resu)
-		var result map[string]interface{}
-		json.Unmarshal(resultJSON, &result)
 		c.JSON(200, result)
 	} else {
 		c.JSON(401, gin.H{"errMsg": "用户不存在"})
