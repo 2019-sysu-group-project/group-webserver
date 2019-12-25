@@ -65,8 +65,12 @@ func CheckUser(username string) int {
 }
 
 // 任务2
-func SetCouponsToRedis(Username string, cou Coupon) {
-	Redis_client.Set(Username+"#"+cou.Coupons, cou.ToString(), 2*time.Second)
+func SetCouponsToRedis(Username string, cou Coupon) error {
+	_, err := Redis_client.Set(Username+"#"+cou.Coupons, cou.ToString(), 2*time.Second).Result()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // 任务2
@@ -85,7 +89,10 @@ func GetCouponsFromRedisOrDatabase(Username string, cou string) (Coupon, error) 
 		result.Stock = float32(coupon.Stock)
 		result.Left = int32(coupon.Left)
 		result.Description = coupon.Description
-		SetCouponsToRedis(Username, result)
+		err = SetCouponsToRedis(Username, result)
+		if err != nil {
+			return result, err
+		}
 		return result, nil
 	}
 	return result, err
@@ -112,6 +119,45 @@ func GetCouponsFromRedis(Username string, cou string) (Coupon, error) {
 		result.ToCoupon(re)
 	}
 	return result, err
+}
+
+// 每当mysql数据库添加新的优惠券的时候，需要将商家拥有的优惠券的列表更新到redis
+func AddCouponsToList(username, couponName string) error {
+	_, err := Redis_client.RPush(username, couponName).Result()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// 商家通过查询redis(若redis没有则查询mysql)获取自己发布过的所有的优惠券信息
+func GetAllCouponsFromRedisByUsername(username string) ([]CouponInfo, error) {
+	res := make([]CouponInfo, 0)
+	len, err := Redis_client.LLen(username).Result() //返回名称为key的list的长度
+	if err != nil {
+		return res, err
+	}
+	re, err := Redis_client.LRange(username, 0, len).Result()
+	if err != nil {
+		return res, err
+	}
+	for _, v := range re {
+		//resTmp, err := GetCouponsFromRedis(username, string(v))
+		resTmp, err := GetCouponsFromRedisOrDatabase(username, v)
+		if err != nil {
+			return res, err
+		}
+		var resInfo CouponInfo
+		resInfo.Username = resTmp.Username
+		resInfo.Coupons = resTmp.Coupons
+		resInfo.Amount = int(resTmp.Amount)
+		resInfo.Stock = int(resTmp.Stock)
+		resInfo.Left = int(resTmp.Left)
+		resInfo.Description = resTmp.Description
+		res = append(res, resInfo)
+	}
+	return res, nil
+
 }
 
 func GetCoupons(username string) ([]CouponInfo, error) {

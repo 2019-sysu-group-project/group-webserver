@@ -280,7 +280,8 @@ func GetCouponsInformation(c *gin.Context) {
 	// deviation, _ := strconv.Atoi(page)
 	flag := model.CheckUser(Username)
 	if flag != 2 {
-		result, err := model.GetCoupons(Username)
+		result, err := model.GetAllCouponsFromRedisByUsername(Username)
+		//result, err := model.GetCoupons(Username)
 		if err != nil {
 			c.JSON(500, gin.H{"errMsg": err})
 			return
