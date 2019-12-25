@@ -196,12 +196,12 @@ func PatchCoupons(c *gin.Context) {
 	sellerName := c.Param("username")
 	couponName := c.Param("name")
 	// 204: 已经有了优惠券
-	_, exists := hashset[userName]
-	if exists {
+	exName, exists := hashset[userName]
+	if exists && exName == couponName {
 		c.JSON(204, gin.H{"errMsg": "Already had the same coupon"})
 		return
 	}
-	// redis这部分可能有bug!!!(start)
+
 	coupon, err := model.GetCouponsFromRedisOrDatabase(sellerName, couponName)
 	// 5xx: 服务端错误
 	if err != nil {
@@ -209,12 +209,16 @@ func PatchCoupons(c *gin.Context) {
 		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
 		return
 	}
-	// 204: 优惠券无库存
-	if coupon.Left == 0 {
-		c.JSON(204, gin.H{"errMsg": "The coupon is out of stock"})
+
+	cnt, err := model.OccupyCoupon(couponName, userName)
+	if err != nil {
+		c.JSON(500, gin.H{"errMsg": err})
 		return
 	}
-
+	if cnt == -1 || int32(cnt) >= coupon.Left*2 {
+		c.JSON(204, gin.H{"errMsg": "优惠券已抢光"})
+		return
+	}
 	coupon.Left--
 	model.SetCouponsToRedis(userName, coupon)
 	// 5xx: 服务端错误
@@ -222,7 +226,6 @@ func PatchCoupons(c *gin.Context) {
 		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
 		return
 	}
-	// redis这部分可能有bug!!!(end)
 
 	// 将用户请求转发到消息队列中，等待消息队列对mysql进行操作并返回结果
 	t := time.Now()
@@ -259,6 +262,7 @@ func PatchCoupons(c *gin.Context) {
 		return
 	case 2:
 		// 201: 成功抢到
+		hashset[userName] = couponName
 		c.JSON(201, gin.H{"errMsg": "Patch Succeeded"})
 		return
 	default:
