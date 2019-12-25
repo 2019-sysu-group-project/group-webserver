@@ -121,6 +121,16 @@ func GetCouponsFromRedis(Username string, cou string) (Coupon, error) {
 	return result, err
 }
 
+// 设定商家的优惠券的数目
+func SetCouponsAmountOfMerchant(username, couponName string, amount int) error {
+	_, err := Redis_client.Set(couponName+"#"+username+"#count", amount, 2*time.Second).Result()
+	if err != nil {
+		return err
+	}
+	return nil
+
+}
+
 // 每当mysql数据库添加新的优惠券的时候，需要将商家拥有的优惠券的列表更新到redis
 func AddCouponsToList(username, couponName string) error {
 	_, err := Redis_client.RPush(username, couponName).Result()

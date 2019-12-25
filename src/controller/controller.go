@@ -167,6 +167,11 @@ func CreateCoupons(c *gin.Context) {
 	if err != nil {
 		c.JSON(500, gin.H{"errMsg": err})
 	}
+	// 设定商家的优惠券数目到redis中
+	err = SetCouponsAmountOfMerchant(couponJSON.Username, couponJSON.Coupons, int(couponJSON.Amount))
+	if err != nil {
+		c.JSON(500, gin.H{"errMsg": err})
+	}
 	c.JSON(201, gin.H{"errMsg": ""})
 }
 
