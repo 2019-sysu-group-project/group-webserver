@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"fmt"
 	"log"
 	"time"
 
@@ -167,6 +166,10 @@ func CreateCoupons(c *gin.Context) {
 	if err != nil {
 		c.JSON(500, gin.H{"errMsg": err})
 	}
+	err = model.AddCouponsToList(couponJSON.Username, couponJSON.Coupons)
+	if err != nil {
+		log.Println(err)
+	}
 	c.JSON(201, gin.H{"errMsg": ""})
 }
 
@@ -193,7 +196,7 @@ func PatchCoupons(c *gin.Context) {
 	// couponName: 优惠券名
 	// 从token.Claims获取用户名
 	userName := token.Claims.(*lib.MyClaims).Uname
-	sellerName := c.Param("username")
+	// sellerName := c.Param("username")
 	couponName := c.Param("name")
 	// 204: 已经有了优惠券
 	exName, exists := hashset[userName]
@@ -202,32 +205,18 @@ func PatchCoupons(c *gin.Context) {
 		return
 	}
 
-	coupon, err := model.GetCouponsFromRedisOrDatabase(sellerName, couponName)
-	// 5xx: 服务端错误
-	if err != nil {
-		log.Println(err)
-		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
-		return
-	}
-
+	// 从redis中扣库存
 	cnt, err := model.OccupyCoupon(couponName, userName)
 	if err != nil {
 		c.JSON(500, gin.H{"errMsg": err})
 		return
 	}
-	if cnt == -1 || int32(cnt) >= coupon.Left*2 {
+	if cnt < 0 {
 		c.JSON(204, gin.H{"errMsg": "优惠券已抢光"})
 		return
 	}
-	coupon.Left--
-	model.SetCouponsToRedis(userName, coupon)
-	// 5xx: 服务端错误
-	if err != nil {
-		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
-		return
-	}
 
-	// 将用户请求转发到消息队列中，等待消息队列对mysql进行操作并返回结果
+	// 将用户请求转发到消息队列中
 	t := time.Now()
 	// 生成uuid
 	u := uuid.NewV4()
@@ -235,41 +224,11 @@ func PatchCoupons(c *gin.Context) {
 	// 先判断是否能成功发送消息
 	err = model.SendMessage(userName, couponName, uid, t.Unix())
 	if err != nil {
+		model.RollBackCoupon(couponName, userName)
 		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
 		return
 	}
-	err, res := model.ReceiveMessage(userName, couponName, uid, t.Unix())
-	if err != nil {
-		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
-		return
-	}
-	fmt.Println(res)
-
-	//返回0代表优惠券数目为0，返回2代表抢券成功，返回1代表用户已经抢到该券不可重复抢，返回-1代表数据库访问错误，返回-2代表超时
-
-	switch res {
-	case -2:
-		c.JSON(504, gin.H{"errMsg": "Time out"})
-		return
-	case -1:
-		c.JSON(504, gin.H{"errMsg": "Mysql Server error"})
-		return
-	case 0:
-		c.JSON(204, gin.H{"errMsg": "The coupon is out of stock"})
-		return
-	case 1:
-		c.JSON(204, gin.H{"errMsg": "Already had the same coupon"})
-		return
-	case 2:
-		// 201: 成功抢到
-		hashset[userName] = couponName
-		c.JSON(201, gin.H{"errMsg": "Patch Succeeded"})
-		return
-	default:
-		c.JSON(504, gin.H{"errMsg": "Gateway Timeout"})
-		return
-	}
-
+	c.JSON(201, gin.H{})
 }
 
 // TODO: add page

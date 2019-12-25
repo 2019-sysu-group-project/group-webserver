@@ -178,10 +178,18 @@ func OccupyCoupon(coupon, username string) (int64, error) {
 	if is {
 		return -1, nil
 	}
-	cnt, err := Redis_client.Incr(coupon + "#count").Result()
+	cnt, err := Redis_client.Decr(coupon + "#count").Result()
 	if err != nil {
 		return -1, err
 	}
 	_, err = Redis_client.SAdd(coupon+"#members", username).Result()
+	if err != nil {
+		Redis_client.Incr(coupon + "#count")
+	}
 	return cnt, err
+}
+
+func RollBackCoupon(coupon, username string) {
+	Redis_client.Incr(coupon + "#count")
+	Redis_client.SRem(coupon+"#members", username)
 }
